@@ -26,16 +26,31 @@ jobs:
         echo "sha_short=$SHA_SHORT" >> $GITHUB_OUTPUT
         echo "build_id=${{ github.run_number }}" >> $GITHUB_OUTPUT
 
+    - name: Check for game assemblies
+      id: check_libs
+      run: |
+        if [ -d "libs" ] && [ -f "libs/Assembly-CSharp.dll" ]; then
+          echo "has_libs=true" >> $GITHUB_OUTPUT
+        else
+          echo "has_libs=false" >> $GITHUB_OUTPUT
+          echo "⚠️  No game assemblies found - skipping build"
+          echo "This is expected in CI. Local builds require DLLs in libs/"
+        fi
+
     - name: Restore dependencies
+      if: steps.check_libs.outputs.has_libs == 'true'
       run: dotnet restore
 
     - name: Build
+      if: steps.check_libs.outputs.has_libs == 'true'
       run: dotnet build --configuration Release --no-restore
 
     - name: Test
+      if: steps.check_libs.outputs.has_libs == 'true'
       run: dotnet test --configuration Release --no-build --verbosity normal || echo "No tests found"
 
     - name: Package mod
+      if: steps.check_libs.outputs.has_libs == 'true'
       run: |
         mkdir -p dist
         cp -r bin/Release/net6.0/*.dll dist/ 2>/dev/null || echo "No DLLs to package yet"
@@ -45,7 +60,7 @@ jobs:
         fi
 
     - name: Upload artifacts
-      if: hashFiles('TRTracker-dev-*.zip') != ''
+      if: steps.check_libs.outputs.has_libs == 'true' && hashFiles('TRTracker-dev-*.zip') != ''
       uses: actions/upload-artifact@v4
       with:
         name: TRTracker-dev-${{ steps.info.outputs.sha_short }}-${{ steps.info.outputs.build_id }}

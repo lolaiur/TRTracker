@@ -36,10 +36,24 @@ jobs:
       with:
         dotnet-version: '6.0.x'
 
+    - name: Check for game assemblies
+      id: check_libs
+      run: |
+        if [ -d "libs" ] && [ -f "libs/Assembly-CSharp.dll" ]; then
+          echo "has_libs=true" >> $GITHUB_OUTPUT
+          echo "✅ Game assemblies found"
+        else
+          echo "has_libs=false" >> $GITHUB_OUTPUT
+          echo "⚠️  No game assemblies - CodeQL will analyze without full build"
+        fi
+
     - name: Restore dependencies
+      if: steps.check_libs.outputs.has_libs == 'true'
       run: dotnet restore
 
     - name: Build
+      if: steps.check_libs.outputs.has_libs == 'true'
+      continue-on-error: true
       run: dotnet build --configuration Release --no-restore
 
     - name: Perform CodeQL Analysis

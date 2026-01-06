@@ -17,17 +17,15 @@
     <PackageReference Include="BepInEx.Core" Version="5.*" />
     <PackageReference Include="BepInEx.PluginInfoProps" Version="2.*" />
     <PackageReference Include="HarmonyX" Version="2.10.1" />
-    
-    <!-- Unity Engine Modules -->
-    <PackageReference Include="UnityEngine.Modules" Version="2021.3.*" />
-    <PackageReference Include="UnityEngine.UI" Version="2021.3.*" />
-    <PackageReference Include="UnityEngine.CoreModule" Version="2021.3.*" />
-    <PackageReference Include="UnityEngine.IMGUIModule" Version="2021.3.*" />
   </ItemGroup>
 
-  <!-- Local Game Assemblies (Optional for CI) -->
+  <!-- Game and Unity Assemblies (from game installation) -->
   <ItemGroup Condition="Exists('$(MSBuildProjectDirectory)/libs/')">
     <Reference Include="Assembly-CSharp" HintPath="libs/Assembly-CSharp.dll" Private="false" />
+    <Reference Include="UnityEngine" HintPath="libs/UnityEngine.dll" Private="false" />
+    <Reference Include="UnityEngine.CoreModule" HintPath="libs/UnityEngine.CoreModule.dll" Private="false" />
+    <Reference Include="UnityEngine.UI" HintPath="libs/UnityEngine.UI.dll" Private="false" />
+    <Reference Include="UnityEngine.IMGUIModule" HintPath="libs/UnityEngine.IMGUIModule.dll" Private="false" />
   </ItemGroup>
 
   <!-- Suppress warnings for missing game assemblies in CI -->

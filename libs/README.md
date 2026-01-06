@@ -8,7 +8,11 @@ Copy these from your game's `Traveler's Rest_Data/Managed/` folder:
 
 ```
 libs/
-  └── Assembly-CSharp.dll
+  ├── Assembly-CSharp.dll
+  ├── UnityEngine.dll
+  ├── UnityEngine.CoreModule.dll
+  ├── UnityEngine.UI.dll
+  └── UnityEngine.IMGUIModule.dll
 ```
 
 **Location examples:**
@@ -19,4 +23,4 @@ libs/
 
 These files are **NOT** committed to the repository (they're in .gitignore). Each developer must copy them locally to build the mod.
 
-The CI/CD workflows will build without these files using stubs, but a full local build requires the actual game assemblies.
+**CI builds will be skipped** until these assemblies are present, as they cannot be distributed publicly.
