@@ -50,3 +50,7 @@ _ReSharper*/
 *.bak
 *.log
 *.tmp
+
+# Game DLLs (user must provide locally)
+libs/*.dll
+libs/*.exe

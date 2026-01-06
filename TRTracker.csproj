@@ -8,13 +8,26 @@
     <Authors>lolaiur</Authors>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
 
+  <!-- NuGet Dependencies -->
   <ItemGroup>
-    <!-- Add your Traveler's Rest game assembly references here -->
-    <!-- <Reference Include="Assembly-CSharp">
-      <HintPath>path/to/Assembly-CSharp.dll</HintPath>
-    </Reference> -->
+    <PackageReference Include="BepInEx.Core" Version="5.*" />
+    <PackageReference Include="BepInEx.PluginInfoProps" Version="2.*" />
+    <PackageReference Include="HarmonyX" Version="2.10.1" />
+    <PackageReference Include="UnityEngine.Modules" Version="2021.3.8" />
   </ItemGroup>
+
+  <!-- Local Game Assemblies (Optional for CI) -->
+  <ItemGroup Condition="Exists('$(MSBuildProjectDirectory)/libs/')">
+    <Reference Include="Assembly-CSharp" HintPath="libs/Assembly-CSharp.dll" Private="false" />
+  </ItemGroup>
+
+  <!-- Suppress warnings for missing game assemblies in CI -->
+  <PropertyGroup>
+    <NoWarn>$(NoWarn);CS0234;CS0246</NoWarn>
+  </PropertyGroup>
 
 </Project>
