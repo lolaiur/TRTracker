@@ -21,7 +21,7 @@ jobs:
 
   build:
     needs: validate-branch
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     
     steps:
     - name: Checkout PR
@@ -34,15 +34,40 @@ jobs:
       with:
         dotnet-version: '6.0.x'
 
-    - name: Check for game assemblies
+    - name: Locate and link game assemblies
       id: check_libs
       run: |
-        if [ -d "libs" ] && [ -f "libs/Assembly-CSharp.dll" ]; then
+        # Common WSL2 paths for Steam games
+        GAME_PATHS=(
+          "/mnt/c/Program Files (x86)/Steam/steamapps/common/Travelers Rest/Traveler's Rest_Data/Managed"
+          "/mnt/c/Steam/steamapps/common/Travelers Rest/Traveler's Rest_Data/Managed"
+          "/mnt/d/SteamLibrary/steamapps/common/Travelers Rest/Traveler's Rest_Data/Managed"
+          "$HOME/.steam/steam/steamapps/common/Travelers Rest/Traveler's Rest_Data/Managed"
+        )
+        
+        FOUND_PATH=""
+        for path in "${GAME_PATHS[@]}"; do
+          if [ -f "$path/Assembly-CSharp.dll" ]; then
+            FOUND_PATH="$path"
+            echo "✅ Found game assemblies at: $path"
+            break
+          fi
+        done
+        
+        if [ -n "$FOUND_PATH" ]; then
+          mkdir -p libs
+          ln -sf "$FOUND_PATH/Assembly-CSharp.dll" libs/
+          ln -sf "$FOUND_PATH/UnityEngine.dll" libs/
+          ln -sf "$FOUND_PATH/UnityEngine.CoreModule.dll" libs/
+          ln -sf "$FOUND_PATH/UnityEngine.UI.dll" libs/
+          ln -sf "$FOUND_PATH/UnityEngine.IMGUIModule.dll" libs/
           echo "has_libs=true" >> $GITHUB_OUTPUT
+          echo "✅ Symlinked game assemblies to libs/"
         else
           echo "has_libs=false" >> $GITHUB_OUTPUT
-          echo "⚠️  No game assemblies found - skipping build"
-          echo "This is expected in CI. Local builds require DLLs in libs/"
+          echo "⚠️  Game assemblies not found in common paths"
+          echo "Searched:"
+          printf '%s\n' "${GAME_PATHS[@]}"
         fi
 
     - name: Restore dependencies
@@ -61,14 +86,12 @@ jobs:
       if: steps.check_libs.outputs.has_libs == 'true'
       run: |
         mkdir -p dist
-        cp -r bin/Release/net6.0/*.dll dist/ 2>/dev/null || echo "No DLLs to package yet"
-        if [ "$(ls -A dist)" ]; then
-          cd dist
-          zip -r ../TRTracker-pr-${{ github.event.pull_request.number }}.zip .
-        fi
+        cp -r bin/Release/net6.0/*.dll dist/
+        cd dist
+        zip -r ../TRTracker-pr-${{ github.event.pull_request.number }}.zip .
 
     - name: Upload PR artifact
-      if: steps.check_libs.outputs.has_libs == 'true' && hashFiles('TRTracker-pr-*.zip') != ''
+      if: steps.check_libs.outputs.has_libs == 'true'
       uses: actions/upload-artifact@v4
       with:
         name: TRTracker-pr-${{ github.event.pull_request.number }}
