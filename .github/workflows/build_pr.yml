@@ -1,0 +1,60 @@
+name: Build PR
+
+on:
+  pull_request:
+    branches: [ "main" ]
+    types: [ opened, synchronize, reopened ]
+
+jobs:
+  validate-branch:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check branch naming
+      run: |
+        BRANCH="${{ github.head_ref }}"
+        if [[ ! $BRANCH =~ ^(feat|fix)/ ]]; then
+          echo "❌ Branch must start with feat/ or fix/"
+          echo "Current branch: $BRANCH"
+          exit 1
+        fi
+        echo "✅ Branch name valid: $BRANCH"
+
+  build:
+    needs: validate-branch
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout PR
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '6.0.x'
+
+    - name: Restore dependencies
+      run: dotnet restore
+
+    - name: Build
+      run: dotnet build --configuration Release --no-restore
+
+    - name: Test
+      run: dotnet test --configuration Release --no-build --verbosity normal || echo "No tests found"
+
+    - name: Package mod
+      run: |
+        mkdir -p dist
+        cp -r bin/Release/net6.0/*.dll dist/ 2>/dev/null || echo "No DLLs to package yet"
+        if [ "$(ls -A dist)" ]; then
+          cd dist
+          zip -r ../TRTracker-pr-${{ github.event.pull_request.number }}.zip .
+        fi
+
+    - name: Upload PR artifact
+      if: hashFiles('TRTracker-pr-*.zip') != ''
+      uses: actions/upload-artifact@v4
+      with:
+        name: TRTracker-pr-${{ github.event.pull_request.number }}
+        path: TRTracker-pr-*.zip

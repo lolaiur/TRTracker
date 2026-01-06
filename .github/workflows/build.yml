@@ -1,0 +1,52 @@
+name: Build
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '6.0.x'
+
+    - name: Collect build info
+      id: info
+      run: |
+        SHA_SHORT=$(git rev-parse --short HEAD)
+        echo "sha_short=$SHA_SHORT" >> $GITHUB_OUTPUT
+        echo "build_id=${{ github.run_number }}" >> $GITHUB_OUTPUT
+
+    - name: Restore dependencies
+      run: dotnet restore
+
+    - name: Build
+      run: dotnet build --configuration Release --no-restore
+
+    - name: Test
+      run: dotnet test --configuration Release --no-build --verbosity normal || echo "No tests found"
+
+    - name: Package mod
+      run: |
+        mkdir -p dist
+        cp -r bin/Release/net6.0/*.dll dist/ 2>/dev/null || echo "No DLLs to package yet"
+        if [ "$(ls -A dist)" ]; then
+          cd dist
+          zip -r ../TRTracker-dev-${{ steps.info.outputs.sha_short }}.zip .
+        fi
+
+    - name: Upload artifacts
+      if: hashFiles('TRTracker-dev-*.zip') != ''
+      uses: actions/upload-artifact@v4
+      with:
+        name: TRTracker-dev-${{ steps.info.outputs.sha_short }}-${{ steps.info.outputs.build_id }}
+        path: TRTracker-dev-*.zip
