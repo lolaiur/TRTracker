@@ -57,6 +57,13 @@ jobs:
       run: dotnet build --configuration Release --no-restore
 
     - name: Perform CodeQL Analysis
+      if: steps.check_libs.outputs.has_libs == 'true'
       uses: github/codeql-action/analyze@v3
       with:
         category: "/language:${{matrix.language}}"
+    
+    - name: Skip CodeQL (no game assemblies)
+      if: steps.check_libs.outputs.has_libs != 'true'
+      run: |
+        echo "⚠️  CodeQL analysis skipped - requires game assemblies for compilation"
+        echo "This is expected in CI without libs/"
