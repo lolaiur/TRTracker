@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <AssemblyName>TRTracker</AssemblyName>
+    <Description>Traveler's Rest Tracker Mod</Description>
+    <Version>1.0.0</Version>
+    <Authors>lolaiur</Authors>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Add your Traveler's Rest game assembly references here -->
+    <!-- <Reference Include="Assembly-CSharp">
+      <HintPath>path/to/Assembly-CSharp.dll</HintPath>
+    </Reference> -->
+  </ItemGroup>
+
+</Project>
