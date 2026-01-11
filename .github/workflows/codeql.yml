@@ -1,0 +1,46 @@
+name: CodeQL Security Scan
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Run at 00:00 UTC every Monday
+    - cron: '0 0 * * 1'
+
+jobs:
+  analyze:
+    name: Analyze C# Code
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [ 'csharp' ]
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v3
+      with:
+        languages: ${{ matrix.language }}
+        # Query suites to run
+        queries: security-and-quality
+
+    - name: Autobuild
+      uses: github/codeql-action/autobuild@v3
+      # Note: Autobuild will attempt to build but may fail without game DLLs.
+      # CodeQL can still analyze the source code for many security issues.
+      continue-on-error: true
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
+      with:
+        category: "/language:${{matrix.language}}"

@@ -1,5 +1,9 @@
 # TRTracker - Traveler's Rest Mod Collection
 
+[![CodeQL](https://github.com/lolaiur/TRTracker/actions/workflows/codeql.yml/badge.svg)](https://github.com/lolaiur/TRTracker/actions/workflows/codeql.yml)
+[![Validate Code](https://github.com/lolaiur/TRTracker/actions/workflows/validate.yml/badge.svg)](https://github.com/lolaiur/TRTracker/actions/workflows/validate.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 A collection of BepInEx plugins that enhance gameplay in Traveler's Rest.
 
 ## Mods Included
@@ -77,10 +81,13 @@ These mods require references to game assemblies to compile. If you own the game
 
 ### Workflow
 
-This repository uses GitHub Actions for validation and releases:
+This repository uses GitHub Actions for validation, security, and releases:
 
+- **CodeQL Security Scan** - Runs on every push/PR and weekly to detect security vulnerabilities
 - **Validate Code** - Runs on every push/PR to verify source files and DLLs exist
 - **Create Release** - Manual workflow to create tagged releases
+
+Security scanning results are visible in the [Security tab](https://github.com/lolaiur/TRTracker/security/code-scanning).
 
 ### Creating a Release
 
