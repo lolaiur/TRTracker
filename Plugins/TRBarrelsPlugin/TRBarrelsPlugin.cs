@@ -1,10 +1,7 @@
 using System;
-using System.IO;
-using System.Text.RegularExpressions;
 using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
-using System.Linq;
 using BepInEx;
 using UnityEngine;
 using UnityEngine.UI;
@@ -18,16 +15,10 @@ namespace TRBarrels
     {
         public static TRBarrelsPlugin Instance;
         public static GameObject UI_OBJ;
-        public static string LogPath;
 
         void Awake()
         {
              Instance = this;
-             string logDir = Path.Combine(Paths.GameRootPath, "ModLogs");
-             Directory.CreateDirectory(logDir);
-             LogPath = Path.Combine(logDir, "barrels_debug.txt");
-             try { if (File.Exists(LogPath)) File.Delete(LogPath); } catch { }
-             try { File.WriteAllText(LogPath, "TRBarrels 1.1.2\n"); } catch { }
              SceneManager.sceneLoaded += OnSceneLoaded;
         }
         
@@ -396,11 +387,11 @@ namespace TRBarrels
                 {
                     if (b == null) continue;
                     if (!b.gameObject.activeInHierarchy) continue;
-                    if (!b.enabled) continue; // Check if script is enabled
-                    
+                    if (!b.enabled) continue;
+
                     Renderer r = b.GetComponent<Renderer>();
                     if (r != null && !r.enabled) continue;
-                    
+
                     Type bType = b.GetType();
                     
                     FieldInfo slotsF = bType.GetField("inputSlot", BindingFlags.Public | BindingFlags.Instance);
@@ -453,45 +444,21 @@ namespace TRBarrels
                             displayName = displayName.Replace("(Food)", "").Replace("(Clone)", "").Trim();
                             e.Name = string.Format("{0} <size=11>(x{1})</size>", displayName, qty);
 
-                            // Stage - try multiple approaches for robustness against game updates
+                            // Stage detection - scan int properties for stage value (1-4)
                             int stage = 0;
                             try {
                                 Type itemType = itemInst.GetType();
 
-                                // Approach 1: Try known obfuscated property names
-                                string[] knownStageProps = { "HNPMCBPPMNB", "agingStage", "AgingStage", "stage", "Stage", "currentStage" };
-                                foreach (string propName in knownStageProps) {
-                                    PropertyInfo stageP = itemType.GetProperty(propName, BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic);
-                                    if (stageP != null && stageP.PropertyType == typeof(int)) {
-                                        stage = (int)stageP.GetValue(itemInst, null);
-                                        if (stage > 0) break;
-                                    }
-                                }
-
-                                // Approach 2: If still 0, try fields with similar names
-                                if (stage == 0) {
-                                    string[] knownStageFields = { "agingStage", "_agingStage", "stage", "_stage", "currentStage" };
-                                    foreach (string fieldName in knownStageFields) {
-                                        FieldInfo stageF = itemType.GetField(fieldName, BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic);
-                                        if (stageF != null && stageF.FieldType == typeof(int)) {
-                                            stage = (int)stageF.GetValue(itemInst);
-                                            if (stage > 0) break;
-                                        }
-                                    }
-                                }
-
-                                // Approach 3: Search for any int property/field that returns 0-4 range and contains "stage" or "aging"
-                                if (stage == 0) {
-                                    foreach (PropertyInfo p in itemType.GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic)) {
-                                        if (p.PropertyType == typeof(int) && p.CanRead) {
-                                            string lowerName = p.Name.ToLower();
-                                            if (lowerName.Contains("stage") || lowerName.Contains("aging") || lowerName.Contains("age")) {
-                                                try {
-                                                    int val = (int)p.GetValue(itemInst, null);
-                                                    if (val >= 0 && val <= 4) { stage = val; break; }
-                                                } catch {}
+                                // Scan int properties on itemInstance for stage value
+                                foreach (PropertyInfo p in itemType.GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic)) {
+                                    if (p.PropertyType == typeof(int) && p.CanRead) {
+                                        try {
+                                            int val = (int)p.GetValue(itemInst, null);
+                                            if (val >= 1 && val <= 4 && stage == 0) {
+                                                stage = val;
+                                                break;
                                             }
-                                        }
+                                        } catch {}
                                     }
                                 }
                             } catch {}
