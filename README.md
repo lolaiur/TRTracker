@@ -58,13 +58,6 @@ You need BepInEx 5.x (64-bit) installed first.
    ```
 4. Launch the game
 
-### Hotkeys
-
-- **F8** - Toggle TRTracker window
-- **F9** - Pause/unpause game time
-- **F6** - Toggle TRBar window
-- **F7** or **Ctrl+B** - Toggle TRBarrels window
-
 ## Requirements
 
 - Traveler's Rest (Steam version)
@@ -127,33 +120,6 @@ This repository uses GitHub Actions for validation, security, and releases:
 
 Security scanning results are visible in the [Security tab](https://github.com/lolaiur/TRTracker/security/code-scanning).
 
-### Creating a Release
-
-1. Ensure all source files are updated with the new version number
-2. Compile locally and update DLLs in `build/`
-3. Commit and push changes
-4. Go to Actions → Create Release → Run workflow
-5. Enter the version number (e.g., `1.2.0`)
-
-### Version Numbering
-
-Each plugin maintains its own version in the `BepInPlugin` attribute:
-```csharp
-[BepInPlugin("com.lolaiur.trtracker", "Tavern Tracker", "1.1.1")]
-```
-
-The release version (e.g., v1.1.1) matches the plugin versions when they're aligned.
-
-## Why Pre-built DLLs?
-
-Game mods require references to proprietary game assemblies that can't be included in public repositories. The source code is provided for transparency and verification, while pre-built DLLs enable easy installation.
-
-Users can:
-- ✅ Review all source code before using
-- ✅ Verify version numbers match between source and DLLs
-- ✅ Build from source if they own the game
-- ✅ See exactly what the code does
-
 ## License
 
 MIT License - See LICENSE file for details
@@ -178,3 +144,4 @@ Contributions welcome! Please:
 Created by lolaiur for the Traveler's Rest modding community.
 
 Built with [BepInEx](https://github.com/BepInEx/BepInEx) and [HarmonyX](https://github.com/BepInEx/HarmonyX).
+
