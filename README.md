@@ -25,8 +25,8 @@ You need BepInEx 5.x (64-bit) installed first.
 
 #### Installing BepInEx 5.x (64-bit)
 
-1. Download **BepInEx 5.4.23.2 x64** from [BepInEx Releases](https://github.com/BepInEx/BepInEx/releases/tag/v5.4.23.2)
-   - Get the file: `BepInEx_win_x64_5.4.23.2.zip`
+1. Download **BepInEx 5.4.23.4 x64** from [BepInEx Releases](https://github.com/BepInEx/BepInEx/releases/tag/v5.4.23.4)
+   - Get the file: 4BepInEx_win_x64_5.4.23.2.zip`
    - ⚠️ **Important:** Use the x64 (64-bit) version, not x86
 
 2. Extract the ZIP file to your Traveler's Rest game folder:
@@ -144,4 +144,5 @@ Contributions welcome! Please:
 Created by lolaiur for the Traveler's Rest modding community.
 
 Built with [BepInEx](https://github.com/BepInEx/BepInEx) and [HarmonyX](https://github.com/BepInEx/HarmonyX).
+
 
