@@ -1,0 +1,36 @@
+# Build artifacts
+*.pdb
+*.cache
+obj/
+bin/
+logs/
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# OS
+.DS_Store
+Thumbs.db
+*.bmp
+*.tmp
+
+# Local test files and old structure
+GOLDEN/
+test.txt
+snip.bmp
+build_all_mods.ps1
+dll/
+
+# Old root-level source files (now in Plugins/)
+/TRTrackerPlugin.cs
+/TRBarrelsPlugin.cs
+/TRBarplugin.cs
+
+# Keep build DLLs for releases
+!build/*.dll

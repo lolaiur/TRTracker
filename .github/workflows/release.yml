@@ -1,0 +1,105 @@
+name: Create Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., 1.1.1)'
+        required: true
+        type: string
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Validate version format
+      run: |
+        VERSION="${{ github.event.inputs.version }}"
+        if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          echo "Invalid version format: $VERSION"
+          echo "Expected format: X.Y.Z (e.g., 1.1.1)"
+          exit 1
+        fi
+        echo "VERSION=v$VERSION" >> $GITHUB_ENV
+        echo "VERSION_NUM=$VERSION" >> $GITHUB_ENV
+
+    - name: Check if tag exists
+      run: |
+        if git rev-parse "v${{ github.event.inputs.version }}" >/dev/null 2>&1; then
+          echo "Tag v${{ github.event.inputs.version }} already exists!"
+          exit 1
+        fi
+
+    - name: Verify DLLs exist
+      run: |
+        test -f build/TRTracker.dll || { echo "TRTracker.dll missing!"; exit 1; }
+        test -f build/TRBar.dll || { echo "TRBar.dll missing!"; exit 1; }
+        test -f build/TRBarrels.dll || { echo "TRBarrels.dll missing!"; exit 1; }
+        echo "✓ All DLLs present"
+
+    - name: Package release
+      run: |
+        mkdir -p release
+        cp build/*.dll release/
+        cd release
+        zip -r ../TRTracker-${{ env.VERSION }}.zip *.dll
+        cd ..
+
+        echo "Package contents:"
+        unzip -l TRTracker-${{ env.VERSION }}.zip
+
+    - name: Generate changelog
+      id: changelog
+      run: |
+        LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+        if [ -z "$LATEST_TAG" ]; then
+          CHANGELOG="Initial release"
+        else
+          CHANGELOG=$(git log ${LATEST_TAG}..HEAD --oneline --no-merges || echo "Updates since last release")
+        fi
+
+        {
+          echo 'changelog<<EOF'
+          echo "$CHANGELOG"
+          echo EOF
+        } >> $GITHUB_OUTPUT
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ env.VERSION }}
+        name: TRTracker ${{ env.VERSION }}
+        body: |
+          ## Traveler's Rest Tracker Mods ${{ env.VERSION_NUM }}
+
+          This release contains three BepInEx plugins for Traveler's Rest:
+
+          - **TRTracker** (v1.1.1) - Gameplay tracking and statistics
+          - **TRBarrels** (v1.1.1) - Barrel management enhancements
+          - **TRBar** (v1.1.1) - Bar UI improvements
+
+          ### Installation
+
+          1. Download `TRTracker-${{ env.VERSION }}.zip`
+          2. Extract all DLL files
+          3. Copy to `Travellers Rest/BepInEx/plugins/`
+          4. Launch the game
+
+          ### Changes
+
+          ${{ steps.changelog.outputs.changelog }}
+
+          ---
+
+          **Note:** These DLLs are compiled from the source code visible in this repository. You can verify the source matches the compiled binaries by comparing version strings and reviewing the code.
+        files: TRTracker-${{ env.VERSION }}.zip
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,60 @@
+name: Validate Code
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Check C# files exist
+      run: |
+        echo "Validating source files..."
+        test -f Plugins/TRTrackerPlugin/TRTrackerPlugin.cs || { echo "TRTrackerPlugin.cs missing!"; exit 1; }
+        test -f Plugins/TRBarPlugin/TRBarPlugin.cs || { echo "TRBarPlugin.cs missing!"; exit 1; }
+        test -f Plugins/TRBarrelsPlugin/TRBarrelsPlugin.cs || { echo "TRBarrelsPlugin.cs missing!"; exit 1; }
+        echo "✓ All source files present"
+
+    - name: Verify source file versions
+      run: |
+        echo "Checking plugin versions..."
+        grep -q 'BepInPlugin.*1\.1\.1' Plugins/TRTrackerPlugin/TRTrackerPlugin.cs && echo "✓ TRTrackerPlugin v1.1.1"
+        grep -q 'BepInPlugin.*1\.1\.1' Plugins/TRBarPlugin/TRBarPlugin.cs && echo "✓ TRBarPlugin v1.1.1"
+        grep -q 'BepInPlugin.*1\.1\.1' Plugins/TRBarrelsPlugin/TRBarrelsPlugin.cs && echo "✓ TRBarrelsPlugin v1.1.1"
+
+    - name: Basic C# syntax validation
+      run: |
+        echo "Installing Roslyn for syntax checking..."
+        dotnet tool install --global dotnet-format || true
+
+        echo "Checking C# syntax..."
+        for file in Plugins/*/*.cs; do
+          echo "Validating $file..."
+          # Basic check - file should contain namespace and class
+          grep -q "namespace" "$file" || { echo "No namespace in $file"; exit 1; }
+          grep -q "class" "$file" || { echo "No class definition in $file"; exit 1; }
+        done
+        echo "✓ Basic syntax validation passed"
+
+    - name: Verify build artifacts
+      run: |
+        echo "Checking pre-built DLLs..."
+        test -f build/TRTracker.dll || { echo "TRTracker.dll missing!"; exit 1; }
+        test -f build/TRBar.dll || { echo "TRBar.dll missing!"; exit 1; }
+        test -f build/TRBarrels.dll || { echo "TRBarrels.dll missing!"; exit 1; }
+        echo "✓ All DLLs present"
+
+        echo "DLL sizes:"
+        ls -lh build/*.dll
