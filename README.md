@@ -19,6 +19,37 @@ Improved bar UI with additional functionality.
 
 ## Installation
 
+### Prerequisites
+
+You need BepInEx 5.x (64-bit) installed first.
+
+#### Installing BepInEx 5.x (64-bit)
+
+1. Download **BepInEx 5.4.23.2 x64** from [BepInEx Releases](https://github.com/BepInEx/BepInEx/releases/tag/v5.4.23.2)
+   - Get the file: `BepInEx_win_x64_5.4.23.2.zip`
+   - ⚠️ **Important:** Use the x64 (64-bit) version, not x86
+
+2. Extract the ZIP file to your Traveler's Rest game folder:
+   ```
+   Steam/steamapps/common/Travellers Rest/
+   ```
+   The folder structure should look like:
+   ```
+   Travellers Rest/
+   ├── BepInEx/
+   │   ├── core/
+   │   ├── plugins/  <- Mods go here
+   │   └── config/
+   ├── doorstop_config.ini
+   ├── winhttp.dll
+   └── TravellersRest.exe
+   ```
+
+3. Run the game once to initialize BepInEx (you'll see a console window)
+4. Close the game - BepInEx is now installed!
+
+#### Installing TRTracker Mods
+
 1. Download the latest release from [Releases](https://github.com/lolaiur/TRTracker/releases)
 2. Extract `TRTracker-vX.X.X.zip`
 3. Copy all `.dll` files to:
@@ -27,10 +58,17 @@ Improved bar UI with additional functionality.
    ```
 4. Launch the game
 
+### Hotkeys
+
+- **F8** - Toggle TRTracker window
+- **F9** - Pause/unpause game time
+- **F6** - Toggle TRBar window
+- **F7** or **Ctrl+B** - Toggle TRBarrels window
+
 ## Requirements
 
 - Traveler's Rest (Steam version)
-- [BepInEx 5.x](https://github.com/BepInEx/BepInEx/releases) installed
+- BepInEx 5.4.23.2 x64 or newer ([Download](https://github.com/BepInEx/BepInEx/releases))
 
 ## Source Code & Transparency
 

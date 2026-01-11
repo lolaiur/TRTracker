@@ -24,8 +24,8 @@ namespace TRTracker
              string logDir = Path.Combine(Paths.GameRootPath, "ModLogs");
              Directory.CreateDirectory(logDir);
              LogPath = Path.Combine(logDir, "tracker_debug.txt");
-             File.Delete(LogPath); 
-             File.WriteAllText(LogPath, "TRTracker 1.1.1\n");
+             try { if (File.Exists(LogPath)) File.Delete(LogPath); } catch { }
+             try { File.WriteAllText(LogPath, "TRTracker 1.1.1\n"); } catch { }
              
              // Cleanup old
              var old = FindObjectOfType<TrackerManager>();
