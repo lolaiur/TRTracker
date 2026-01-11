@@ -13,7 +13,7 @@ using UnityEngine.SceneManagement;
 
 namespace TRBarrels
 {
-    [BepInPlugin("com.lolaiur.trbarrels", "Tavern Barrels", "1.1.1")]
+    [BepInPlugin("com.lolaiur.trbarrels", "Tavern Barrels", "1.1.2")]
     public class TRBarrelsPlugin : BaseUnityPlugin
     {
         public static TRBarrelsPlugin Instance;
@@ -27,7 +27,7 @@ namespace TRBarrels
              Directory.CreateDirectory(logDir);
              LogPath = Path.Combine(logDir, "barrels_debug.txt");
              try { if (File.Exists(LogPath)) File.Delete(LogPath); } catch { }
-             try { File.WriteAllText(LogPath, "TRBarrels 1.1.1\n"); } catch { }
+             try { File.WriteAllText(LogPath, "TRBarrels 1.1.2\n"); } catch { }
              SceneManager.sceneLoaded += OnSceneLoaded;
         }
         
@@ -453,11 +453,47 @@ namespace TRBarrels
                             displayName = displayName.Replace("(Food)", "").Replace("(Clone)", "").Trim();
                             e.Name = string.Format("{0} <size=11>(x{1})</size>", displayName, qty);
 
-                            // Stage
+                            // Stage - try multiple approaches for robustness against game updates
                             int stage = 0;
                             try {
-                                PropertyInfo stageP = itemInst.GetType().GetProperty("HNPMCBPPMNB", BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic);
-                                if (stageP != null) stage = (int)stageP.GetValue(itemInst, null);
+                                Type itemType = itemInst.GetType();
+
+                                // Approach 1: Try known obfuscated property names
+                                string[] knownStageProps = { "HNPMCBPPMNB", "agingStage", "AgingStage", "stage", "Stage", "currentStage" };
+                                foreach (string propName in knownStageProps) {
+                                    PropertyInfo stageP = itemType.GetProperty(propName, BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic);
+                                    if (stageP != null && stageP.PropertyType == typeof(int)) {
+                                        stage = (int)stageP.GetValue(itemInst, null);
+                                        if (stage > 0) break;
+                                    }
+                                }
+
+                                // Approach 2: If still 0, try fields with similar names
+                                if (stage == 0) {
+                                    string[] knownStageFields = { "agingStage", "_agingStage", "stage", "_stage", "currentStage" };
+                                    foreach (string fieldName in knownStageFields) {
+                                        FieldInfo stageF = itemType.GetField(fieldName, BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic);
+                                        if (stageF != null && stageF.FieldType == typeof(int)) {
+                                            stage = (int)stageF.GetValue(itemInst);
+                                            if (stage > 0) break;
+                                        }
+                                    }
+                                }
+
+                                // Approach 3: Search for any int property/field that returns 0-4 range and contains "stage" or "aging"
+                                if (stage == 0) {
+                                    foreach (PropertyInfo p in itemType.GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic)) {
+                                        if (p.PropertyType == typeof(int) && p.CanRead) {
+                                            string lowerName = p.Name.ToLower();
+                                            if (lowerName.Contains("stage") || lowerName.Contains("aging") || lowerName.Contains("age")) {
+                                                try {
+                                                    int val = (int)p.GetValue(itemInst, null);
+                                                    if (val >= 0 && val <= 4) { stage = val; break; }
+                                                } catch {}
+                                            }
+                                        }
+                                    }
+                                }
                             } catch {}
                             e.StageVal = stage;
                             
