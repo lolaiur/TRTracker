@@ -31,14 +31,9 @@ jobs:
       uses: github/codeql-action/init@v3
       with:
         languages: ${{ matrix.language }}
-        # Query suites to run
-        queries: security-and-quality
-
-    - name: Autobuild
-      uses: github/codeql-action/autobuild@v3
-      # Note: Autobuild will attempt to build but may fail without game DLLs.
-      # CodeQL can still analyze the source code for many security issues.
-      continue-on-error: true
+        queries: security-extended
+        # Configure for build-less analysis
+        build-mode: none
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v3
