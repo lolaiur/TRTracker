@@ -32,7 +32,7 @@ jobs:
         echo "Checking plugin versions..."
         grep -q 'BepInPlugin.*1\.1\.1' Plugins/TRTrackerPlugin/TRTrackerPlugin.cs && echo "✓ TRTrackerPlugin v1.1.1"
         grep -q 'BepInPlugin.*1\.1\.1' Plugins/TRBarPlugin/TRBarPlugin.cs && echo "✓ TRBarPlugin v1.1.1"
-        grep -q 'BepInPlugin.*1\.1\.1' Plugins/TRBarrelsPlugin/TRBarrelsPlugin.cs && echo "✓ TRBarrelsPlugin v1.1.1"
+        grep -q 'BepInPlugin.*1\.1\.2' Plugins/TRBarrelsPlugin/TRBarrelsPlugin.cs && echo "✓ TRBarrelsPlugin v1.1.1"
 
     - name: Basic C# syntax validation
       run: |
@@ -58,3 +58,4 @@ jobs:
 
         echo "DLL sizes:"
         ls -lh build/*.dll
+
