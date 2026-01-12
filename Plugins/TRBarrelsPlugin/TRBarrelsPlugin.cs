@@ -1,10 +1,7 @@
 using System;
-using System.IO;
-using System.Text.RegularExpressions;
 using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
-using System.Linq;
 using BepInEx;
 using UnityEngine;
 using UnityEngine.UI;
@@ -13,21 +10,15 @@ using UnityEngine.SceneManagement;
 
 namespace TRBarrels
 {
-    [BepInPlugin("com.lolaiur.trbarrels", "Tavern Barrels", "1.1.1")]
+    [BepInPlugin("com.lolaiur.trbarrels", "Tavern Barrels", "1.1.2")]
     public class TRBarrelsPlugin : BaseUnityPlugin
     {
         public static TRBarrelsPlugin Instance;
         public static GameObject UI_OBJ;
-        public static string LogPath;
 
         void Awake()
         {
              Instance = this;
-             string logDir = Path.Combine(Paths.GameRootPath, "ModLogs");
-             Directory.CreateDirectory(logDir);
-             LogPath = Path.Combine(logDir, "barrels_debug.txt");
-             try { if (File.Exists(LogPath)) File.Delete(LogPath); } catch { }
-             try { File.WriteAllText(LogPath, "TRBarrels 1.1.1\n"); } catch { }
              SceneManager.sceneLoaded += OnSceneLoaded;
         }
         
@@ -396,11 +387,11 @@ namespace TRBarrels
                 {
                     if (b == null) continue;
                     if (!b.gameObject.activeInHierarchy) continue;
-                    if (!b.enabled) continue; // Check if script is enabled
-                    
+                    if (!b.enabled) continue;
+
                     Renderer r = b.GetComponent<Renderer>();
                     if (r != null && !r.enabled) continue;
-                    
+
                     Type bType = b.GetType();
                     
                     FieldInfo slotsF = bType.GetField("inputSlot", BindingFlags.Public | BindingFlags.Instance);
@@ -453,11 +444,23 @@ namespace TRBarrels
                             displayName = displayName.Replace("(Food)", "").Replace("(Clone)", "").Trim();
                             e.Name = string.Format("{0} <size=11>(x{1})</size>", displayName, qty);
 
-                            // Stage
+                            // Stage detection - scan int properties for stage value (1-4)
                             int stage = 0;
                             try {
-                                PropertyInfo stageP = itemInst.GetType().GetProperty("HNPMCBPPMNB", BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic);
-                                if (stageP != null) stage = (int)stageP.GetValue(itemInst, null);
+                                Type itemType = itemInst.GetType();
+
+                                // Scan int properties on itemInstance for stage value
+                                foreach (PropertyInfo p in itemType.GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic)) {
+                                    if (p.PropertyType == typeof(int) && p.CanRead) {
+                                        try {
+                                            int val = (int)p.GetValue(itemInst, null);
+                                            if (val >= 1 && val <= 4 && stage == 0) {
+                                                stage = val;
+                                                break;
+                                            }
+                                        } catch {}
+                                    }
+                                }
                             } catch {}
                             e.StageVal = stage;
                             
