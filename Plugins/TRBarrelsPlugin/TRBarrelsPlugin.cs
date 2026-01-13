@@ -10,7 +10,7 @@ using UnityEngine.SceneManagement;
 
 namespace TRBarrels
 {
-    [BepInPlugin("com.lolaiur.trbarrels", "Tavern Barrels", "1.1.2")]
+    [BepInPlugin("com.lolaiur.trbarrels", "Tavern Barrels", "1.2.0")]
     public class TRBarrelsPlugin : BaseUnityPlugin
     {
         public static TRBarrelsPlugin Instance;
@@ -486,7 +486,7 @@ namespace TRBarrels
                                         if (totalF != null && startF != null) {
                                             ulong total = (ulong)totalF.GetValue(t);
                                             ulong start = (ulong)startF.GetValue(t);
-                                            PropertyInfo wtP = Type.GetType("WorldTime, Assembly-CSharp").GetProperty("KBDEHEMCFGM", BindingFlags.Public | BindingFlags.Static);
+                                            PropertyInfo wtP = Type.GetType("WorldTime, Assembly-CSharp").GetProperty("MFHEEJMONON", BindingFlags.Public | BindingFlags.Static);
                                             ulong current = (ulong)wtP.GetValue(null, null);
                                             
                                             if (total > 0) {

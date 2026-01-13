@@ -10,7 +10,7 @@ using System.Reflection;
 
 namespace TRBarPlugin
 {
-    [BepInPlugin("com.lolaiur.trbar", "TRBar", "1.1.1")]
+    [BepInPlugin("com.lolaiur.trbar", "TRBar", "1.2.0")]
     [BepInProcess("TravellersRest.exe")]
     public class TRBarPlugin : BaseUnityPlugin
     {
@@ -22,8 +22,8 @@ namespace TRBarPlugin
             Directory.CreateDirectory(logDir);
             LogPath = Path.Combine(logDir, "bar_debug.txt");
             try { File.Delete(LogPath); } catch {}
-            File.WriteAllText(LogPath, "TRBar 1.1.1\n");
-            Logger.LogInfo("TRBar 1.1.1");
+            File.WriteAllText(LogPath, "TRBar 1.2.0\n");
+            Logger.LogInfo("TRBar 1.2.0");
             
             // Cleanup old
             var old = FindObjectOfType<BarTrackerManager>();
@@ -213,7 +213,7 @@ namespace TRBarPlugin
                     hTitle.transform.SetParent(header.transform, false);
                     Text ht = hTitle.AddComponent<Text>();
                     if (uiFont != null) ht.font = uiFont;
-                    ht.text = "TR BAR 1.1.1";
+                    ht.text = "TR BAR 1.2.0";
                     ht.alignment = TextAnchor.MiddleCenter;
                     ht.color = new Color(1f, 0.8f, 0.4f);
                     ht.fontSize = 14;
@@ -314,9 +314,9 @@ namespace TRBarPlugin
             try {
                 // --- 1. Tavern Open State ---
                 bool isOpen = false;
-                if (TavernManager.GOPLFLFJANK != null)
+                if (TavernManager.OFDGCPAEGOM != null)
                 {
-                    isOpen = TavernManager.GOPLFLFJANK.EBHPIFCMBPF;
+                    isOpen = TavernManager.OFDGCPAEGOM.NLLHCAJBECF;
                 }
 
                 // --- 2. Track Taps (Kegs) ---
