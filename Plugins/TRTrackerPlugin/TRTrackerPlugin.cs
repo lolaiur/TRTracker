@@ -12,7 +12,7 @@ using UnityEngine.SceneManagement;
 
 namespace TRTracker
 {
-    [BepInPlugin("com.lolaiur.trtracker", "Tavern Tracker", "1.1.1")]
+    [BepInPlugin("com.lolaiur.trtracker", "Tavern Tracker", "1.2.0")]
     public class TRTrackerPlugin : BaseUnityPlugin
     {
         public static TRTrackerPlugin Instance;
@@ -25,7 +25,7 @@ namespace TRTracker
              Directory.CreateDirectory(logDir);
              LogPath = Path.Combine(logDir, "tracker_debug.txt");
              try { if (File.Exists(LogPath)) File.Delete(LogPath); } catch { }
-             try { File.WriteAllText(LogPath, "TRTracker 1.1.1\n"); } catch { }
+             try { File.WriteAllText(LogPath, "TRTracker 1.2.0\n"); } catch { }
              
              // Cleanup old
              var old = FindObjectOfType<TrackerManager>();
@@ -155,7 +155,7 @@ namespace TRTracker
                 hTitle.transform.SetParent(header.transform, false);
                 Text ht = hTitle.AddComponent<Text>();
                 ht.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-                ht.text = "TAVERN TRACKER 1.1.1";
+                ht.text = "TAVERN TRACKER 1.2.0";
                 ht.alignment = TextAnchor.MiddleCenter;
                 ht.color = new Color(1f, 0.8f, 0.4f);
                 ht.fontSize = 14;
@@ -411,7 +411,7 @@ namespace TRTracker
         }
     }
 
-    [HarmonyPatch(typeof(TavernManager), "EBHPIFCMBPF", MethodType.Getter)]
+    [HarmonyPatch(typeof(TavernManager), "NLLHCAJBECF", MethodType.Getter)]
     public static class TRTrackerPatch {
         private static DateTime lastUIUpdate = DateTime.MinValue;
         private static bool hasDumpedTM = false;
@@ -422,7 +422,7 @@ namespace TRTracker
             try {
                  // Date
                  Type wt=Type.GetType("WorldTime, Assembly-CSharp");
-                 object d=wt.GetProperty("FCGMAMNMBAK",BindingFlags.Public|BindingFlags.Static).GetValue(null,null);
+                 object d=wt.GetProperty("HPJLLDAAEGG",BindingFlags.Public|BindingFlags.Static).GetValue(null,null);
                  Type dt=d.GetType();
                  int h=(int)dt.GetField("hour").GetValue(d);
                  int m=(int)dt.GetField("min").GetValue(d);
@@ -439,7 +439,7 @@ namespace TRTracker
                  string dateLine = string.Format("DATE:   {0}, {1} ({2}, Day {3})", season, year, dayName, dayNum);
 
                  // Money
-                 Money mon=Money.IIKOCGECCCK();
+                 Money mon=Money.GetInstance();
                  object b=typeof(Money).GetField("balance",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(mon);
                  Type bt=b.GetType();
                  int g=(int)bt.GetProperty("Gold").GetValue(b,null);
@@ -447,23 +447,23 @@ namespace TRTracker
                  int c=(int)bt.GetProperty("Copper").GetValue(b,null);
                  
                  // XP & Level
-                 TavernReputation rep = TavernReputation.GOPLFLFJANK;
+                 TavernReputation rep = TavernReputation.OFDGCPAEGOM;
                  int rawXP = TavernReputation.GetReputationExp(); 
-                 PropertyInfo levelProp = typeof(TavernReputation).GetProperty("NDMEFMKEEMO", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+                 PropertyInfo levelProp = typeof(TavernReputation).GetProperty("EFHAKBCILMG", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
                  int level = (int)levelProp.GetValue(rep, null);
-                 FieldInfo maxXPField = typeof(TavernReputation).GetField("PIGENMMICJN", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+                 FieldInfo maxXPField = typeof(TavernReputation).GetField("EICJODGJHPD", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
                  int maxXP = (int)maxXPField.GetValue(rep);
 
                  // Customers (Active)
-                 TavernManager tm = TavernManager.GOPLFLFJANK;
+                 TavernManager tm = TavernManager.OFDGCPAEGOM;
                  int occ = tm.customers.Count;
                  
                  // Customers (Total Served) - For Session Stats
                  int totalServed = 0;
                  try {
-                     var tsMgr = TavernServiceManager.GOPLFLFJANK;
+                     var tsMgr = TavernServiceManager.OFDGCPAEGOM;
                      if (tsMgr != null) {
-                         var statsList = tsMgr.AMCEIEKIOBC(); // Returns List<TavernStats> (tavernStats)
+                         var statsList = tsMgr.GetAllTavernStats(); // Returns List<TavernStats> (tavernStats)
                          if (statsList != null && statsList.Count > 0) {
                              var todayStats = statsList[statsList.Count - 1]; // Last entry is today
                              totalServed = todayStats.customersCount;
@@ -472,7 +472,7 @@ namespace TRTracker
                  } catch {}
 
                  // Temp
-                 PropertyInfo heatProp = typeof(TavernManager).GetProperty("HNEPIHBGPDG", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                 PropertyInfo heatProp = typeof(TavernManager).GetProperty("IIOJBDFPLBM", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
                  object heatVal = heatProp.GetValue(tm, null);
                  string heatStr = heatVal.ToString();
                  string heatColor = "white"; 
@@ -482,7 +482,7 @@ namespace TRTracker
                  heatStr = string.Format("<color={0}>{1}</color>", heatColor, heatStr);
 
                  // Dirt Level
-                 PropertyInfo dirtProp = typeof(TavernManager).GetProperty("ILCOFHEKFOJ", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                 PropertyInfo dirtProp = typeof(TavernManager).GetProperty("GMEAACPPLAK", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
                  object dirtVal = dirtProp != null ? dirtProp.GetValue(tm, null) : "Unknown";
                  string dirtStr = dirtVal.ToString();
                  string dirtColor = "white";
@@ -511,7 +511,7 @@ namespace TRTracker
                          int zIndex = player.zoneIndex;
 
                          // Get Zone Manager
-                         var zoneMgr = TavernZonesManager.GOPLFLFJANK;
+                         var zoneMgr = TavernZonesManager.OFDGCPAEGOM;
                          if (zoneMgr == null) {
                               comfortStr = "NoMgr";
                          }
