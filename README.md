@@ -8,6 +8,13 @@ A collection of BepInEx plugins that enhance gameplay in Traveler's Rest.
 
 ## Supported game version 0.7.4.10
 
+
+<img width="1418" height="643" alt="image" src="https://github.com/user-attachments/assets/10f860d0-ab79-4a52-a585-ec54647c22ab" />
+
+
+The mod comes in the three DLLs listed below. Each can be installed individually or all together. 
+
+
 ## Mods Included
 
 ### 🎯 TRTracker
@@ -146,6 +153,7 @@ Contributions welcome! Please:
 Created by lolaiur for the Traveler's Rest modding community.
 
 Built with [BepInEx](https://github.com/BepInEx/BepInEx) and [HarmonyX](https://github.com/BepInEx/HarmonyX).
+
 
 
 
