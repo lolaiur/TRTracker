@@ -6,15 +6,17 @@
 
 A collection of BepInEx plugins that enhance gameplay in Traveler's Rest.
 
+## Supported game version 0.7.4.10
+
 ## Mods Included
 
-### 🎯 TRTracker (v1.1.1)
+### 🎯 TRTracker
 Gameplay tracking and statistics system for monitoring your tavern's performance.
 
-### 🍺 TRBarrels (v1.1.1)
+### 🍺 TRBarrels 
 Enhanced barrel management and tracking features.
 
-### 📊 TRBar (v1.1.1)
+### 📊 TRBar 
 Improved bar UI with additional functionality.
 
 ## Installation
@@ -144,6 +146,7 @@ Contributions welcome! Please:
 Created by lolaiur for the Traveler's Rest modding community.
 
 Built with [BepInEx](https://github.com/BepInEx/BepInEx) and [HarmonyX](https://github.com/BepInEx/HarmonyX).
+
 
 
 
