@@ -10,7 +10,7 @@ using UnityEngine.SceneManagement;
 
 namespace TRBarrels
 {
-    [BepInPlugin("com.lolaiur.trbarrels", "Tavern Barrels", "1.2.0")]
+    [BepInPlugin("com.lolaiur.trbarrels", "Tavern Barrels", "1.3.0")]
     public class TRBarrelsPlugin : BaseUnityPlugin
     {
         public static TRBarrelsPlugin Instance;
@@ -19,6 +19,9 @@ namespace TRBarrels
         void Awake()
         {
              Instance = this;
+             var loadMsg = new GameObject("LoadMsg").AddComponent<LoadStatusUI>();
+             loadMsg.ModName = "TRBarrels";
+             DontDestroyOnLoad(loadMsg.gameObject);
              SceneManager.sceneLoaded += OnSceneLoaded;
         }
         
@@ -27,19 +30,14 @@ namespace TRBarrels
             CreateUI();
         }
         
+        private bool _showUI = true;
+
         void Update()
         {
-            if (Input.GetKeyDown(KeyCode.F7) || (Input.GetKey(KeyCode.LeftControl) && Input.GetKeyDown(KeyCode.B))) {
+            if (Input.GetKeyDown(KeyCode.F2)) {
                 if (UI_OBJ != null) {
-                    bool state = !UI_OBJ.activeSelf;
-                    UI_OBJ.SetActive(state);
-                }
-            }
-            
-            if (UI_OBJ != null && UI_OBJ.activeSelf) {
-                Canvas c = UI_OBJ.GetComponent<Canvas>();
-                if (c != null && c.renderMode == RenderMode.ScreenSpaceCamera && c.worldCamera == null) {
-                    c.worldCamera = Camera.main;
+                    _showUI = !_showUI;
+                    UI_OBJ.SetActive(_showUI);
                 }
             }
         }
@@ -61,11 +59,8 @@ namespace TRBarrels
                 DontDestroyOnLoad(UI_OBJ);
                 
                 Canvas c = UI_OBJ.AddComponent<Canvas>();
-                c.renderMode = RenderMode.ScreenSpaceCamera; // To appear behind Overlay cursor
-                c.worldCamera = Camera.main; 
-                c.planeDistance = 5; 
-                c.sortingOrder = 100; // High enough to be over world, low enough for UI?
-                // Actually Overlay is always on top. So any Camera mode is fine. 
+                c.renderMode = RenderMode.ScreenSpaceOverlay;
+                c.sortingOrder = 101;
                 CanvasScaler cs = UI_OBJ.AddComponent<CanvasScaler>();
                 cs.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
                 cs.referenceResolution = new Vector2(1920, 1080);
@@ -76,10 +71,11 @@ namespace TRBarrels
                 panel.transform.SetParent(UI_OBJ.transform, false);
                 Image border = panel.AddComponent<Image>();
                 border.color = new Color(0.6f, 0.4f, 0.2f); 
+                border.raycastTarget = false;
                 RectTransform panelRT = panel.GetComponent<RectTransform>();
-                panelRT.anchorMin = new Vector2(1, 1); panelRT.anchorMax = new Vector2(1, 1);
-                panelRT.pivot = new Vector2(1, 1); 
-                panelRT.anchoredPosition = new Vector2(-20, -120);
+                panelRT.anchorMin = new Vector2(0, 1); panelRT.anchorMax = new Vector2(0, 1);
+                panelRT.pivot = new Vector2(0, 1); 
+                panelRT.anchoredPosition = new Vector2(20, -560);
                 panelRT.sizeDelta = new Vector2(360, 400); // Standardized to Match TRTracker
 
                 // Background
@@ -87,6 +83,8 @@ namespace TRBarrels
                 bg.transform.SetParent(panel.transform, false);
                 Image bgImg = bg.AddComponent<Image>();
                 bgImg.color = new Color(0.15f, 0.1f, 0.05f, 0.98f); 
+                bgImg.raycastTarget = true;
+                bg.AddComponent<WindowPointerFocus>();
                 RectTransform bgRT = bg.GetComponent<RectTransform>();
                 bgRT.anchorMin = Vector2.zero; bgRT.anchorMax = Vector2.one;
                 bgRT.offsetMin = new Vector2(2, 2); bgRT.offsetMax = new Vector2(-2, -2);
@@ -103,7 +101,22 @@ namespace TRBarrels
                 headerRT.sizeDelta = new Vector2(0, 35); 
 
                 // Title
-                CreateHeaderText(header.transform, "Aging Stats", 0, 360, TextAnchor.MiddleCenter);
+                GameObject hTitle = new GameObject("Title");
+                hTitle.transform.SetParent(header.transform, false);
+                Text ht = hTitle.AddComponent<Text>();
+                ht.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+                ht.text = "AGING STATS 1.3.0 (F2)";
+                ht.alignment = TextAnchor.MiddleCenter;
+                ht.color = new Color(1f, 0.8f, 0.4f);
+                ht.fontSize = 14;
+                ht.raycastTarget = false;
+                RectTransform htRT = hTitle.GetComponent<RectTransform>();
+                if (htRT == null) htRT = hTitle.AddComponent<RectTransform>();
+                htRT.anchorMin = Vector2.zero;
+                htRT.anchorMax = Vector2.one;
+                htRT.sizeDelta = Vector2.zero;
+                htRT.offsetMin = Vector2.zero;
+                htRT.offsetMax = Vector2.zero;
 
                 WindowDestroyer drag = header.AddComponent<WindowDestroyer>(); 
                 drag.TargetMover = panelRT;
@@ -115,27 +128,13 @@ namespace TRBarrels
                 bodyRT.anchorMin = Vector2.zero; bodyRT.anchorMax = Vector2.one;
                 bodyRT.offsetMin = Vector2.zero; bodyRT.offsetMax = new Vector2(0, -35); // Ends at bottom of header
 
-                // === LABELS ROW ===
-                GameObject labels = new GameObject("Labels");
-                labels.transform.SetParent(body.transform, false);
-                RectTransform labelsRT = labels.AddComponent<RectTransform>();
-                labelsRT.anchorMin = new Vector2(0, 1); labelsRT.anchorMax = new Vector2(1, 1);
-                labelsRT.pivot = new Vector2(0, 1);
-                labelsRT.sizeDelta = new Vector2(0, 25);
-                labelsRT.anchoredPosition = Vector2.zero;
-
-                // Move Column Headers here
-                CreateHeaderText(labels.transform, "Product", 10, 165, TextAnchor.MiddleLeft);
-                CreateHeaderText(labels.transform, "Stage", 170, 235, TextAnchor.MiddleCenter);
-                CreateHeaderText(labels.transform, "Progress", 240, 330, TextAnchor.MiddleRight);
-
                 // === SCROLL VIEW ===
                 GameObject scrollObj = new GameObject("Scroll View");
                 scrollObj.transform.SetParent(body.transform, false); // Child of Body
                 RectTransform scrollRT = scrollObj.AddComponent<RectTransform>();
                 scrollRT.anchorMin = Vector2.zero; scrollRT.anchorMax = Vector2.one;
                 scrollRT.offsetMin = new Vector2(5, 5); 
-                scrollRT.offsetMax = new Vector2(-15, -25); // Below Labels
+                scrollRT.offsetMax = new Vector2(-15, -5); // Fills inner body
 
                 // --- COLLAPSE BUTTON ---
                 GameObject btnObj = new GameObject("CollapseBtn");
@@ -170,11 +169,15 @@ namespace TRBarrels
                 // Viewport
                 GameObject viewport = new GameObject("Viewport");
                 viewport.transform.SetParent(scrollObj.transform, false);
+                viewport.AddComponent<WindowPointerFocus>();
                 RectTransform viewRT = viewport.AddComponent<RectTransform>();
                 viewRT.anchorMin = Vector2.zero; viewRT.anchorMax = Vector2.one;
                 viewRT.sizeDelta = Vector2.zero;
-                viewport.AddComponent<Mask>().showMaskGraphic = false;
-                Image maskImg = viewport.AddComponent<Image>();
+                viewRT.offsetMin = Vector2.zero; viewRT.offsetMax = Vector2.zero;
+                viewport.AddComponent<RectMask2D>();
+                Image vImg = viewport.AddComponent<Image>();
+                vImg.color = new Color(0, 0, 0, 0); // Transparent raycast target for scrolling
+                vImg.raycastTarget = true;
                 sr.viewport = viewRT;
 
                 // Content
@@ -184,18 +187,21 @@ namespace TRBarrels
                 contentRT.anchorMin = new Vector2(0, 1); contentRT.anchorMax = new Vector2(1, 1);
                 contentRT.pivot = new Vector2(0, 1);
                 contentRT.sizeDelta = new Vector2(0, 0);
+                contentRT.offsetMin = Vector2.zero; contentRT.offsetMax = Vector2.zero;
                 sr.content = contentRT;
 
-                // === SCROLLBAR === (Removed Visuals)
+                // === SCROLLBAR ===
                 GameObject scrollbarObj = new GameObject("Scrollbar Vertical");
                 scrollbarObj.transform.SetParent(bg.transform, false);
                 RectTransform sbRT = scrollbarObj.AddComponent<RectTransform>();
                 sbRT.anchorMin = new Vector2(1, 0); sbRT.anchorMax = new Vector2(1, 1);
                 sbRT.pivot = new Vector2(1, 1);
-                sbRT.anchoredPosition = Vector2.zero; 
-                sbRT.sizeDelta = Vector2.zero; // Hidden
+                sbRT.anchoredPosition = new Vector2(-5, -60); 
+                sbRT.sizeDelta = new Vector2(15, -85);
                 
-                // No Image // Image sbImg = scrollbarObj.AddComponent<Image>();
+                Image sbImg = scrollbarObj.AddComponent<Image>();
+                sbImg.color = new Color(0.1f, 0.1f, 0.1f, 0.5f);
+                sbImg.raycastTarget = false;
                 
                 Scrollbar sb = scrollbarObj.AddComponent<Scrollbar>();
                 sb.direction = Scrollbar.Direction.BottomToTop;
@@ -206,15 +212,20 @@ namespace TRBarrels
                 slidingArea.transform.SetParent(scrollbarObj.transform, false);
                 RectTransform slideRT = slidingArea.AddComponent<RectTransform>();
                 slideRT.anchorMin = Vector2.zero; slideRT.anchorMax = Vector2.one;
+                slideRT.sizeDelta = Vector2.zero;
+                slideRT.offsetMin = Vector2.zero; slideRT.offsetMax = Vector2.zero;
 
-                // Handle (Hidden)
+                // Handle
                 GameObject handle = new GameObject("Handle");
                 handle.transform.SetParent(slidingArea.transform, false);
-                // Explicitly add RectTransform since we aren't adding Image
                 RectTransform handleRT = handle.AddComponent<RectTransform>();
                 handleRT.sizeDelta = Vector2.zero;
+                handleRT.offsetMin = Vector2.zero; handleRT.offsetMax = Vector2.zero;
+                
+                Image handleImg = handle.AddComponent<Image>();
+                handleImg.color = new Color(0.4f, 0.4f, 0.4f, 0.8f);
                 sb.handleRect = handleRT;
-                // sb.targetGraphic = handleImg;
+                sb.targetGraphic = handleImg;
 
                 // --- RESIZE GRIP (Bottom-Right Triangle) ---
                 GameObject grip = new GameObject("ResizeGrip");
@@ -268,7 +279,7 @@ namespace TRBarrels
             RectTransform rt = go.GetComponent<RectTransform>();
             rt.anchorMin = new Vector2(0, 0); rt.anchorMax = new Vector2(0, 1);
             rt.pivot = new Vector2(0, 0.5f);
-            rt.anchoredPosition3D = new Vector3(xMin, 0, -0.5f); // Increased Z offset
+            rt.anchoredPosition = new Vector2(xMin, 0); // Removed Z offset
             rt.sizeDelta = new Vector2(xMax - xMin, 0); 
         }
         
@@ -292,7 +303,7 @@ namespace TRBarrels
             rt.anchorMin = new Vector2(0, 1); 
             rt.anchorMax = new Vector2(0, 1);
             rt.pivot = new Vector2(0, 1);
-            rt.anchoredPosition3D = new Vector3(xMin, 0, -0.5f); // Increased Z offset
+            rt.anchoredPosition = new Vector2(xMin, 0); // Removed Z offset
             rt.sizeDelta = new Vector2(xMax - xMin, 0); 
             
             ContentSizeFitter csf = go.AddComponent<ContentSizeFitter>();
@@ -301,23 +312,58 @@ namespace TRBarrels
         }
     }
 
+    public static class WindowLayerUtil
+    {
+        public static void BringToFront(Component component)
+        {
+            if (component == null) return;
+
+            Canvas rootCanvas = component.GetComponentInParent<Canvas>();
+            if (rootCanvas != null && rootCanvas.isRootCanvas)
+            {
+                rootCanvas.overrideSorting = true;
+                rootCanvas.sortingOrder = 1000 + (int)((DateTime.UtcNow.Ticks / TimeSpan.TicksPerMillisecond) % 100000);
+            }
+
+            RectTransform rect = component.GetComponent<RectTransform>();
+            if (rect != null) rect.SetAsLastSibling();
+        }
+    }
+
+    public class WindowPointerFocus : MonoBehaviour, IPointerDownHandler
+    {
+        public void OnPointerDown(PointerEventData data)
+        {
+            WindowLayerUtil.BringToFront(this);
+        }
+    }
+
     /// <summary>Handles window dragging via header.</summary>
-    public class WindowDestroyer : MonoBehaviour, IDragHandler
+    public class WindowDestroyer : MonoBehaviour, IDragHandler, IPointerDownHandler
     {
         public RectTransform TargetMover;
+        public void OnPointerDown(PointerEventData data) {
+            WindowLayerUtil.BringToFront(this);
+        }
         public void OnDrag(PointerEventData data) {
+            WindowLayerUtil.BringToFront(this);
             if (TargetMover) TargetMover.anchoredPosition += data.delta;
         }
     }
 
     /// <summary>Handles window resizing via bottom-right corner grip.</summary>
-    public class ResizeHandler : MonoBehaviour, IDragHandler
+    public class ResizeHandler : MonoBehaviour, IDragHandler, IPointerDownHandler
     {
         public RectTransform PanelRect;
         public Vector2 MinSize = new Vector2(200, 150);
         public Vector2 MaxSize = new Vector2(800, 800);
 
+        public void OnPointerDown(PointerEventData data) {
+            WindowLayerUtil.BringToFront(this);
+        }
+
         public void OnDrag(PointerEventData data) {
+            WindowLayerUtil.BringToFront(this);
             if (PanelRect == null) return;
             Vector2 size = PanelRect.sizeDelta;
             size.x += data.delta.x;
@@ -335,8 +381,12 @@ namespace TRBarrels
         public Text TextTime;
         public RectTransform ContentRect;
         
-        private float scanTimer = 0f;
-        private List<MonoBehaviour> cachedBarrels = new List<MonoBehaviour>();
+        private float _scanInterval = 5f;
+        private float _listUpdateInterval = 1f;
+        private float _nextScanTime = 0f;
+        private float _nextUpdateTime = 0f;
+        private List<Component> cachedBarrels = new List<Component>();
+        private Type _agingBarrelType;
         
         // Memory Optimization
         private System.Text.StringBuilder _sbName = new System.Text.StringBuilder();
@@ -346,12 +396,17 @@ namespace TRBarrels
         void Update()
         {
             try {
-                 // Scan Loop
-                scanTimer += Time.deltaTime;
-                if (scanTimer > 1.0f) 
+                if (!TRBarrelsPlugin.UI_OBJ || !TRBarrelsPlugin.UI_OBJ.activeInHierarchy) return;
+
+                if (Time.unscaledTime >= _nextScanTime)
                 {
-                    scanTimer = 0f;
+                    _nextScanTime = Time.unscaledTime + _scanInterval;
                     ScanBarrels();
+                }
+
+                if (Time.unscaledTime >= _nextUpdateTime)
+                {
+                    _nextUpdateTime = Time.unscaledTime + _listUpdateInterval;
                     if (cachedBarrels.Count > 0) UpdateList();
                 }
             } catch {}
@@ -360,10 +415,18 @@ namespace TRBarrels
         void ScanBarrels()
         {
             try {
+                if (_agingBarrelType == null)
+                {
+                    _agingBarrelType = Type.GetType("AgingBarrel, Assembly-CSharp");
+                }
+
                 cachedBarrels.Clear();
-                MonoBehaviour[] all = FindObjectsOfType<MonoBehaviour>();
+                if (_agingBarrelType == null) return;
+
+                UnityEngine.Object[] all = FindObjectsOfType(_agingBarrelType);
                 foreach(var m in all) {
-                    if (m != null && m.GetType().Name == "AgingBarrel") cachedBarrels.Add(m);
+                    Component component = m as Component;
+                    if (component != null) cachedBarrels.Add(component);
                 }
             } catch {}
         }
@@ -387,7 +450,8 @@ namespace TRBarrels
                 {
                     if (b == null) continue;
                     if (!b.gameObject.activeInHierarchy) continue;
-                    if (!b.enabled) continue;
+                    Behaviour behaviour = b as Behaviour;
+                    if (behaviour != null && !behaviour.enabled) continue;
 
                     Renderer r = b.GetComponent<Renderer>();
                     if (r != null && !r.enabled) continue;
@@ -486,8 +550,7 @@ namespace TRBarrels
                                         if (totalF != null && startF != null) {
                                             ulong total = (ulong)totalF.GetValue(t);
                                             ulong start = (ulong)startF.GetValue(t);
-                                            PropertyInfo wtP = Type.GetType("WorldTime, Assembly-CSharp").GetProperty("MFHEEJMONON", BindingFlags.Public | BindingFlags.Static);
-                                            ulong current = (ulong)wtP.GetValue(null, null);
+                                            ulong current = BarrelReflection.GetStaticValueByType<ulong>(Type.GetType("WorldTime, Assembly-CSharp"));
                                             
                                             if (total > 0) {
                                                 double elapsed = (double)(current - start);
@@ -521,6 +584,10 @@ namespace TRBarrels
                 _sbName.Clear();
                 _sbStage.Clear();
                 _sbTime.Clear();
+
+                _sbName.AppendLine("<size=13><b>Product</b></size>");
+                _sbStage.AppendLine("<size=13><b>Stage</b></size>");
+                _sbTime.AppendLine("<size=13><b>Progress</b></size>");
 
                 foreach(var e in entries) { 
                     _sbName.Append(e.Name).Append("\n");
@@ -610,6 +677,50 @@ namespace TRBarrels
             if (ContentObj) {
                 ContentObj.SetActive(!IsCollapsed);
             }
+        }
+    }
+
+    public static class BarrelReflection
+    {
+        private static readonly BindingFlags AnyStatic = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static;
+
+        public static T GetStaticValueByType<T>(Type ownerType)
+        {
+            foreach (PropertyInfo prop in ownerType.GetProperties(AnyStatic))
+            {
+                if (prop.PropertyType == typeof(T) && prop.GetIndexParameters().Length == 0)
+                {
+                    try { return (T)prop.GetValue(null, null); } catch {}
+                }
+            }
+
+            foreach (FieldInfo field in ownerType.GetFields(AnyStatic))
+            {
+                if (field.FieldType == typeof(T))
+                {
+                    try { return (T)field.GetValue(null); } catch {}
+                }
+            }
+
+            return default(T);
+        }
+    }
+
+    public class LoadStatusUI : MonoBehaviour {
+        public string ModName = "";
+        private float alpha = 1f;
+        void OnGUI() {
+            if (alpha <= 0) { Destroy(this.gameObject); return; }
+            GUI.color = new Color(0.2f, 1f, 0.2f, alpha);
+            GUIStyle style = new GUIStyle(GUI.skin.label);
+            style.fontSize = 20; style.fontStyle = FontStyle.Bold;
+            
+            GUI.color = new Color(0, 0, 0, alpha);
+            GUI.Label(new Rect(21, 21, 400, 50), ModName + " Loaded!", style);
+            GUI.color = new Color(0.2f, 1f, 0.2f, alpha);
+            GUI.Label(new Rect(20, 20, 400, 50), ModName + " Loaded!", style);
+            
+            alpha -= Time.deltaTime / 5f;
         }
     }
 }

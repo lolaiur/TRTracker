@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version (e.g., 1.1.1)'
+        description: 'Release version (e.g., 1.3.1)'
         required: true
         type: string
 
@@ -23,7 +23,7 @@ jobs:
         VERSION="${{ github.event.inputs.version }}"
         if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
           echo "Invalid version format: $VERSION"
-          echo "Expected format: X.Y.Z (e.g., 1.1.1)"
+          echo "Expected format: X.Y.Z (e.g., 1.3.1)"
           exit 1
         fi
         echo "VERSION=v$VERSION" >> $GITHUB_ENV
@@ -41,6 +41,7 @@ jobs:
         test -f build/TRTracker.dll || { echo "TRTracker.dll missing!"; exit 1; }
         test -f build/TRBar.dll || { echo "TRBar.dll missing!"; exit 1; }
         test -f build/TRBarrels.dll || { echo "TRBarrels.dll missing!"; exit 1; }
+        test -f build/TRStats.dll || { echo "TRStats.dll missing!"; exit 1; }
         echo "✓ All DLLs present"
 
     - name: Package release
@@ -78,11 +79,12 @@ jobs:
         body: |
           ## Traveler's Rest Tracker Mods ${{ env.VERSION_NUM }}
 
-          This release contains three BepInEx plugins for Traveler's Rest:
+          This release contains four BepInEx plugins for Traveler's Rest:
 
-          - **TRTracker** (v1.1.1) - Gameplay tracking and statistics
-          - **TRBarrels** (v1.1.1) - Barrel management enhancements
-          - **TRBar** (v1.1.1) - Bar UI improvements
+          - **TRTracker** (v1.3.0) - Gameplay tracking and statistics
+          - **TRBarrels** (v1.3.0) - Barrel management enhancements
+          - **TRBar** (v1.3.0) - Bar UI improvements
+          - **TRStats** (v1.1.0) - Tavern tuning and utility controls
 
           ### Installation
 

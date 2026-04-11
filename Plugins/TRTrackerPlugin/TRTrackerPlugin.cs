@@ -12,7 +12,7 @@ using UnityEngine.SceneManagement;
 
 namespace TRTracker
 {
-    [BepInPlugin("com.lolaiur.trtracker", "Tavern Tracker", "1.2.0")]
+    [BepInPlugin("com.lolaiur.trtracker", "Tavern Tracker", "1.3.0")]
     public class TRTrackerPlugin : BaseUnityPlugin
     {
         public static TRTrackerPlugin Instance;
@@ -25,7 +25,7 @@ namespace TRTracker
              Directory.CreateDirectory(logDir);
              LogPath = Path.Combine(logDir, "tracker_debug.txt");
              try { if (File.Exists(LogPath)) File.Delete(LogPath); } catch { }
-             try { File.WriteAllText(LogPath, "TRTracker 1.2.0\n"); } catch { }
+             try { File.WriteAllText(LogPath, "TRTracker 1.3.0\n"); } catch { }
              
              // Cleanup old
              var old = FindObjectOfType<TrackerManager>();
@@ -35,7 +35,31 @@ namespace TRTracker
              DontDestroyOnLoad(go);
              go.AddComponent<TrackerManager>();
              
+             var loadMsg = new GameObject("LoadMsg").AddComponent<LoadStatusUI>();
+             loadMsg.ModName = "TRTracker";
+             DontDestroyOnLoad(loadMsg.gameObject);
+             
              try { new Harmony("com.lolaiur.trtracker").PatchAll(); } catch {}
+        }
+    }
+
+    public class LoadStatusUI : MonoBehaviour {
+        public string ModName = "";
+        private float alpha = 1f;
+        void OnGUI() {
+            if (alpha <= 0) { Destroy(this.gameObject); return; }
+            GUI.color = new Color(0.2f, 1f, 0.2f, alpha);
+            GUIStyle style = new GUIStyle(GUI.skin.label);
+            style.fontSize = 20; style.fontStyle = FontStyle.Bold;
+            
+            // Draw drop shadow
+            GUI.color = new Color(0, 0, 0, alpha);
+            GUI.Label(new Rect(21, 21, 400, 50), ModName + " Loaded!", style);
+            // Draw text
+            GUI.color = new Color(0.2f, 1f, 0.2f, alpha);
+            GUI.Label(new Rect(20, 20, 400, 50), ModName + " Loaded!", style);
+            
+            alpha -= Time.deltaTime / 5f;
         }
     }
 
@@ -54,6 +78,7 @@ namespace TRTracker
         
         void OnSceneLoaded(Scene scene, LoadSceneMode mode) {
              try {
+                GameReflection.ClearSingletonCache();
                 if(scene.name == "Gameplay") {
                     TRTrackerPatch.ResetDump();
                 }
@@ -73,10 +98,15 @@ namespace TRTracker
             CreateUI();
         }
 
+        private bool _showUI = true;
+
         void Update()
         {
-            if (Input.GetKeyDown(KeyCode.F8)) {
-                if (UI_OBJ != null) UI_OBJ.SetActive(!UI_OBJ.activeSelf);
+            if (Input.GetKeyDown(KeyCode.F1)) {
+                if (UI_OBJ != null) {
+                    _showUI = !_showUI;
+                    UI_OBJ.SetActive(_showUI);
+                }
             }
             if (Input.GetKeyDown(KeyCode.F9)) {
                 if (TimeCtrl != null) TimeCtrl.ToggleFreeze();
@@ -123,6 +153,7 @@ namespace TRTracker
                 
                 Image border = panel.AddComponent<Image>();
                 border.color = new Color(0.6f, 0.4f, 0.2f); 
+                border.raycastTarget = false;
                 panelRT.anchorMin = new Vector2(0, 1); panelRT.anchorMax = new Vector2(0, 1);
                 panelRT.pivot = new Vector2(0, 1);
                 panelRT.anchoredPosition = new Vector2(20, -120);
@@ -133,6 +164,8 @@ namespace TRTracker
                 bg.transform.SetParent(panel.transform, false);
                 Image bgImg = bg.AddComponent<Image>();
                 bgImg.color = new Color(0.15f, 0.1f, 0.05f, 0.98f); 
+                bgImg.raycastTarget = true;
+                bg.AddComponent<WindowPointerFocus>();
                 RectTransform bgRT = bg.GetComponent<RectTransform>();
                 if (bgRT==null) bgRT = bg.AddComponent<RectTransform>();
                 bgRT.anchorMin = Vector2.zero; bgRT.anchorMax = Vector2.one;
@@ -155,15 +188,16 @@ namespace TRTracker
                 hTitle.transform.SetParent(header.transform, false);
                 Text ht = hTitle.AddComponent<Text>();
                 ht.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-                ht.text = "TAVERN TRACKER 1.2.0";
+                ht.text = "TAVERN TRACKER 1.3.0 (F1)";
                 ht.alignment = TextAnchor.MiddleCenter;
                 ht.color = new Color(1f, 0.8f, 0.4f);
                 ht.fontSize = 14;
+                ht.raycastTarget = false;
                 RectTransform htRT = hTitle.GetComponent<RectTransform>();
                 if (htRT==null) htRT = hTitle.AddComponent<RectTransform>();
                 htRT.anchorMin = Vector2.zero; htRT.anchorMax = Vector2.one;
                 htRT.sizeDelta = Vector2.zero;
-                htRT.anchoredPosition3D = new Vector3(0, 0, -0.1f); 
+                htRT.anchoredPosition = Vector2.zero; 
 
                 // --- COLLAPSE BUTTON ---
                 GameObject btnObj = new GameObject("CollapseBtn");
@@ -187,9 +221,88 @@ namespace TRTracker
 
                 UI = panel.AddComponent<UIHandler>();
 
+                // --- SCROLL VIEW ---
+                GameObject scrollObj = new GameObject("Scroll View");
+                scrollObj.transform.SetParent(bg.transform, false);
+                RectTransform scrollRT = scrollObj.AddComponent<RectTransform>();
+                scrollRT.anchorMin = Vector2.zero; scrollRT.anchorMax = Vector2.one;
+                scrollRT.offsetMin = new Vector2(10, 25);
+                scrollRT.offsetMax = new Vector2(-25, -35); // Margin for scrollbar
+                
+                ScrollRect sr = scrollObj.AddComponent<ScrollRect>();
+                sr.horizontal = false; sr.vertical = true;
+                sr.scrollSensitivity = 25f; sr.movementType = ScrollRect.MovementType.Elastic;
+                sr.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHide;
+
+                // Viewport
+                GameObject viewport = new GameObject("Viewport");
+                viewport.transform.SetParent(scrollObj.transform, false);
+                viewport.AddComponent<WindowPointerFocus>();
+                RectTransform viewRT = viewport.AddComponent<RectTransform>();
+                viewRT.anchorMin = Vector2.zero; viewRT.anchorMax = Vector2.one;
+                viewRT.sizeDelta = Vector2.zero;
+                viewRT.offsetMin = Vector2.zero; viewRT.offsetMax = Vector2.zero;
+                viewport.AddComponent<RectMask2D>();
+                Image vImg = viewport.AddComponent<Image>();
+                vImg.color = new Color(0, 0, 0, 0); // Transparent raycast target for scrolling
+                vImg.raycastTarget = true;
+                sr.viewport = viewRT;
+
+                // Content
+                GameObject content = new GameObject("Content");
+                content.transform.SetParent(viewport.transform, false);
+                RectTransform contentRT = content.AddComponent<RectTransform>();
+                contentRT.anchorMin = new Vector2(0, 1); contentRT.anchorMax = new Vector2(1, 1);
+                contentRT.pivot = new Vector2(0, 1);
+                contentRT.sizeDelta = new Vector2(0, 0);
+                contentRT.offsetMin = Vector2.zero; contentRT.offsetMax = Vector2.zero;
+                sr.content = contentRT;
+                
+                ContentSizeFitter csf = content.AddComponent<ContentSizeFitter>();
+                csf.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+                VerticalLayoutGroup vlg = content.AddComponent<VerticalLayoutGroup>();
+                vlg.childControlHeight = true; vlg.childControlWidth = true;
+                vlg.childForceExpandHeight = false; vlg.childForceExpandWidth = true;
+
+                // --- SCROLLBAR ---
+                GameObject scrollbarObj = new GameObject("Scrollbar Vertical");
+                scrollbarObj.transform.SetParent(bg.transform, false);
+                RectTransform sbRT = scrollbarObj.AddComponent<RectTransform>();
+                sbRT.anchorMin = new Vector2(1, 0); sbRT.anchorMax = new Vector2(1, 1);
+                sbRT.pivot = new Vector2(1, 1);
+                sbRT.anchoredPosition = new Vector2(-5, -35); 
+                sbRT.sizeDelta = new Vector2(15, -60); // Offset top and bottom
+                
+                Image sbBgImg = scrollbarObj.AddComponent<Image>();
+                sbBgImg.color = new Color(0.1f, 0.1f, 0.1f, 0.5f);
+                sbBgImg.raycastTarget = false;
+                
+                Scrollbar sb = scrollbarObj.AddComponent<Scrollbar>();
+                sb.direction = Scrollbar.Direction.BottomToTop;
+                sr.verticalScrollbar = sb;
+
+                GameObject slidingArea = new GameObject("Sliding Area");
+                slidingArea.transform.SetParent(scrollbarObj.transform, false);
+                RectTransform slideRT = slidingArea.AddComponent<RectTransform>();
+                slideRT.anchorMin = Vector2.zero; slideRT.anchorMax = Vector2.one;
+                slideRT.sizeDelta = Vector2.zero;
+                slideRT.offsetMin = Vector2.zero; slideRT.offsetMax = Vector2.zero;
+
+                GameObject handle = new GameObject("Handle");
+                handle.transform.SetParent(slidingArea.transform, false);
+                RectTransform handleRT = handle.AddComponent<RectTransform>();
+                handleRT.sizeDelta = Vector2.zero;
+                handleRT.offsetMin = Vector2.zero; handleRT.offsetMax = Vector2.zero;
+                Image handleImg = handle.AddComponent<Image>();
+                handleImg.color = new Color(0.4f, 0.4f, 0.4f, 0.8f);
+                sb.handleRect = handleRT;
+                sb.targetGraphic = handleImg;
+
+                UI.ContentObj = scrollObj; // Used for Collapse logic later
+
                 // --- CONTENT TEXT ---
                 GameObject text = new GameObject("TRText");
-                text.transform.SetParent(bg.transform, false);
+                text.transform.SetParent(content.transform, false);
                 Text t = text.AddComponent<Text>();
                 t.raycastTarget = false;
 
@@ -200,13 +313,12 @@ namespace TRTracker
                 t.fontSize = 14;
                 t.lineSpacing = 1.15f;
                 t.alignment = TextAnchor.UpperLeft;
-                t.horizontalOverflow = HorizontalWrapMode.Overflow;
+                t.horizontalOverflow = HorizontalWrapMode.Overflow; 
+                t.verticalOverflow = VerticalWrapMode.Truncate;
                 UI.MainText = t;
 
                 RectTransform trt = text.GetComponent<RectTransform>();
-                trt.anchorMin = Vector2.zero; trt.anchorMax = Vector2.one;
-                trt.offsetMin = new Vector2(10, 25);
-                trt.offsetMax = new Vector2(-10, -35);
+                // Layout controlled by VLG now
 
                 // --- RESIZE GRIP (Bottom-Right Triangle) ---
                 GameObject grip = new GameObject("ResizeGrip");
@@ -229,6 +341,7 @@ namespace TRTracker
                 triText.fontSize = 16;
                 triText.color = new Color(1f, 0.9f, 0.7f, 0.8f);
                 triText.alignment = TextAnchor.MiddleCenter;
+                triText.raycastTarget = false;
                 RectTransform triRT = tri.GetComponent<RectTransform>();
                 triRT.anchorMin = Vector2.zero; triRT.anchorMax = Vector2.one;
                 triRT.sizeDelta = Vector2.zero;
@@ -249,24 +362,59 @@ namespace TRTracker
         }
     }
     
+    public static class WindowLayerUtil
+    {
+        public static void BringToFront(Component component)
+        {
+            if (component == null) return;
+
+            Canvas rootCanvas = component.GetComponentInParent<Canvas>();
+            if (rootCanvas != null && rootCanvas.isRootCanvas)
+            {
+                rootCanvas.overrideSorting = true;
+                rootCanvas.sortingOrder = 1000 + (int)((DateTime.UtcNow.Ticks / TimeSpan.TicksPerMillisecond) % 100000);
+            }
+
+            RectTransform rect = component.GetComponent<RectTransform>();
+            if (rect != null) rect.SetAsLastSibling();
+        }
+    }
+
+    public class WindowPointerFocus : MonoBehaviour, IPointerDownHandler
+    {
+        public void OnPointerDown(PointerEventData data)
+        {
+            WindowLayerUtil.BringToFront(this);
+        }
+    }
+    
     /// <summary>Handles window dragging via header.</summary>
-    public class WindowDestroyer : MonoBehaviour, IDragHandler
+    public class WindowDestroyer : MonoBehaviour, IDragHandler, IPointerDownHandler
     {
         public RectTransform TargetMover;
+        public void OnPointerDown(PointerEventData data) {
+            WindowLayerUtil.BringToFront(this);
+        }
         public void OnDrag(PointerEventData data) {
+            WindowLayerUtil.BringToFront(this);
             if (TargetMover) TargetMover.anchoredPosition += data.delta;
         }
     }
 
     /// <summary>Handles window resizing via bottom-right corner grip.</summary>
-    public class ResizeHandler : MonoBehaviour, IDragHandler
+    public class ResizeHandler : MonoBehaviour, IDragHandler, IPointerDownHandler
     {
         public RectTransform PanelRect;
         public RectTransform ContentRect;
         public Vector2 MinSize = new Vector2(200, 150);
         public Vector2 MaxSize = new Vector2(800, 800);
 
+        public void OnPointerDown(PointerEventData data) {
+            WindowLayerUtil.BringToFront(this);
+        }
+
         public void OnDrag(PointerEventData data) {
+            WindowLayerUtil.BringToFront(this);
             if (PanelRect == null) return;
             Vector2 size = PanelRect.sizeDelta;
             size.x += data.delta.x;
@@ -280,6 +428,7 @@ namespace TRTracker
     public class UIHandler : MonoBehaviour
     {
         public Text MainText;
+        public GameObject ContentObj; // Scroll view object to toggle on collapse
         private RectTransform startRect;
         private System.Text.StringBuilder _sb = new System.Text.StringBuilder(512);
 
@@ -411,18 +560,138 @@ namespace TRTracker
         }
     }
 
-    [HarmonyPatch(typeof(TavernManager), "NLLHCAJBECF", MethodType.Getter)]
+    public static class GameReflection
+    {
+        private static readonly BindingFlags AnyStatic = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static;
+        private static readonly BindingFlags AnyInstance = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
+        private static readonly Dictionary<Type, UnityEngine.Object> SingletonCache = new Dictionary<Type, UnityEngine.Object>();
+
+        public static void ClearSingletonCache()
+        {
+            SingletonCache.Clear();
+        }
+
+        public static T FindSingleton<T>() where T : UnityEngine.Object
+        {
+            Type type = typeof(T);
+            UnityEngine.Object cached;
+            if (SingletonCache.TryGetValue(type, out cached))
+            {
+                T cachedValue = cached as T;
+                if (cachedValue != null) return cachedValue;
+                SingletonCache.Remove(type);
+            }
+
+            T found = UnityEngine.Object.FindObjectOfType<T>();
+            if (found != null) {
+                SingletonCache[type] = found;
+                return found;
+            }
+
+            foreach (PropertyInfo prop in type.GetProperties(AnyStatic))
+            {
+                if (prop.PropertyType == type && prop.GetIndexParameters().Length == 0)
+                {
+                    try {
+                        T value = prop.GetValue(null, null) as T;
+                        if (value != null) {
+                            SingletonCache[type] = value;
+                            return value;
+                        }
+                    } catch {}
+                }
+            }
+
+            foreach (FieldInfo field in type.GetFields(AnyStatic))
+            {
+                if (field.FieldType == type)
+                {
+                    try {
+                        T value = field.GetValue(null) as T;
+                        if (value != null) {
+                            SingletonCache[type] = value;
+                            return value;
+                        }
+                    } catch {}
+                }
+            }
+
+            return null;
+        }
+
+        public static object GetStaticValueByType(Type ownerType, Type valueType)
+        {
+            foreach (PropertyInfo prop in ownerType.GetProperties(AnyStatic))
+            {
+                if (prop.PropertyType == valueType && prop.GetIndexParameters().Length == 0)
+                {
+                    try { return prop.GetValue(null, null); } catch {}
+                }
+            }
+
+            foreach (FieldInfo field in ownerType.GetFields(AnyStatic))
+            {
+                if (field.FieldType == valueType)
+                {
+                    try { return field.GetValue(null); } catch {}
+                }
+            }
+
+            return null;
+        }
+
+        public static PropertyInfo FindInstancePropertyByType(Type ownerType, Type valueType)
+        {
+            foreach (PropertyInfo prop in ownerType.GetProperties(AnyInstance))
+            {
+                if (prop.PropertyType == valueType && prop.GetIndexParameters().Length == 0)
+                {
+                    return prop;
+                }
+            }
+
+            return null;
+        }
+
+        public static FieldInfo FindClosestIntField(object instance, int minimumValue)
+        {
+            FieldInfo best = null;
+            int bestValue = int.MaxValue;
+
+            foreach (FieldInfo field in instance.GetType().GetFields(AnyInstance))
+            {
+                if (field.FieldType != typeof(int)) continue;
+
+                try {
+                    int value = (int)field.GetValue(instance);
+                    if (value >= minimumValue && value < bestValue)
+                    {
+                        best = field;
+                        bestValue = value;
+                    }
+                } catch {}
+            }
+
+            return best;
+        }
+    }
+
+    [HarmonyPatch(typeof(TavernManager), "get_open")]
     public static class TRTrackerPatch {
         private static DateTime lastUIUpdate = DateTime.MinValue;
         private static bool hasDumpedTM = false;
+        private const double UIUpdateIntervalSeconds = 0.25;
         public static void ResetDump() { hasDumpedTM = false; }
         
-        static void Postfix(bool __result) { if ((DateTime.Now - lastUIUpdate).TotalSeconds > 0.1) { lastUIUpdate = DateTime.Now; if (TrackerManager.UI != null) Gather(__result); } }
-        static void Gather(bool o) {
+        static void Postfix(TavernManager __instance, bool __result) { if ((DateTime.Now - lastUIUpdate).TotalSeconds > UIUpdateIntervalSeconds) { lastUIUpdate = DateTime.Now; if (TrackerManager.UI != null && TrackerManager.UI.MainText != null && TrackerManager.UI.MainText.gameObject.activeInHierarchy) Gather(__instance, __result); } }
+        static void Gather(TavernManager tm, bool o) {
             try {
+                 if (tm == null) return;
+
                  // Date
                  Type wt=Type.GetType("WorldTime, Assembly-CSharp");
-                 object d=wt.GetProperty("HPJLLDAAEGG",BindingFlags.Public|BindingFlags.Static).GetValue(null,null);
+                 object d = GameReflection.GetStaticValueByType(wt, typeof(GameDate));
+                 if (d == null) return;
                  Type dt=d.GetType();
                  int h=(int)dt.GetField("hour").GetValue(d);
                  int m=(int)dt.GetField("min").GetValue(d);
@@ -447,21 +716,21 @@ namespace TRTracker
                  int c=(int)bt.GetProperty("Copper").GetValue(b,null);
                  
                  // XP & Level
-                 TavernReputation rep = TavernReputation.OFDGCPAEGOM;
+                 TavernReputation rep = GameReflection.FindSingleton<TavernReputation>();
+                 if (rep == null) return;
                  int rawXP = TavernReputation.GetReputationExp(); 
-                 PropertyInfo levelProp = typeof(TavernReputation).GetProperty("EFHAKBCILMG", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
-                 int level = (int)levelProp.GetValue(rep, null);
-                 FieldInfo maxXPField = typeof(TavernReputation).GetField("EICJODGJHPD", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
-                 int maxXP = (int)maxXPField.GetValue(rep);
+                 PropertyInfo levelProp = GameReflection.FindInstancePropertyByType(typeof(TavernReputation), typeof(int));
+                 int level = levelProp != null ? (int)levelProp.GetValue(rep, null) : 0;
+                 FieldInfo maxXPField = GameReflection.FindClosestIntField(rep, rawXP);
+                 int maxXP = maxXPField != null ? (int)maxXPField.GetValue(rep) : rawXP;
 
                  // Customers (Active)
-                 TavernManager tm = TavernManager.OFDGCPAEGOM;
                  int occ = tm.customers.Count;
                  
                  // Customers (Total Served) - For Session Stats
                  int totalServed = 0;
                  try {
-                     var tsMgr = TavernServiceManager.OFDGCPAEGOM;
+                     var tsMgr = GameReflection.FindSingleton<TavernServiceManager>();
                      if (tsMgr != null) {
                          var statsList = tsMgr.GetAllTavernStats(); // Returns List<TavernStats> (tavernStats)
                          if (statsList != null && statsList.Count > 0) {
@@ -472,8 +741,8 @@ namespace TRTracker
                  } catch {}
 
                  // Temp
-                 PropertyInfo heatProp = typeof(TavernManager).GetProperty("IIOJBDFPLBM", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-                 object heatVal = heatProp.GetValue(tm, null);
+                 PropertyInfo heatProp = GameReflection.FindInstancePropertyByType(typeof(TavernManager), typeof(HeatLevel));
+                 object heatVal = heatProp != null ? heatProp.GetValue(tm, null) : "Unknown";
                  string heatStr = heatVal.ToString();
                  string heatColor = "white"; 
                  if (heatStr.Contains("Perfect")) heatColor = "green";
@@ -482,7 +751,7 @@ namespace TRTracker
                  heatStr = string.Format("<color={0}>{1}</color>", heatColor, heatStr);
 
                  // Dirt Level
-                 PropertyInfo dirtProp = typeof(TavernManager).GetProperty("GMEAACPPLAK", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                 PropertyInfo dirtProp = GameReflection.FindInstancePropertyByType(typeof(TavernManager), typeof(DirtLevel));
                  object dirtVal = dirtProp != null ? dirtProp.GetValue(tm, null) : "Unknown";
                  string dirtStr = dirtVal.ToString();
                  string dirtColor = "white";
@@ -511,7 +780,7 @@ namespace TRTracker
                          int zIndex = player.zoneIndex;
 
                          // Get Zone Manager
-                         var zoneMgr = TavernZonesManager.OFDGCPAEGOM;
+                         var zoneMgr = GameReflection.FindSingleton<TavernZonesManager>();
                          if (zoneMgr == null) {
                               comfortStr = "NoMgr";
                          }
@@ -567,8 +836,9 @@ namespace TRTracker
                 PanelRect.sizeDelta = new Vector2(PanelRect.sizeDelta.x, IsCollapsed ? CollapsedHeight : ExpandedHeight);
             }
             
-            if (TrackerManager.UI != null && TrackerManager.UI.MainText != null) {
-                TrackerManager.UI.MainText.gameObject.SetActive(!IsCollapsed);
+            if (TrackerManager.UI != null) {
+                if (TrackerManager.UI.ContentObj != null) TrackerManager.UI.ContentObj.gameObject.SetActive(!IsCollapsed);
+                else if (TrackerManager.UI.MainText != null) TrackerManager.UI.MainText.gameObject.SetActive(!IsCollapsed);
             }
         }
     }
