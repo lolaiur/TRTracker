@@ -10,7 +10,7 @@ using System.Reflection;
 
 namespace TRBarPlugin
 {
-    [BepInPlugin("com.lolaiur.trbar", "TRBar", "1.2.0")]
+    [BepInPlugin("com.lolaiur.trbar", "TRBar", "1.3.0")]
     [BepInProcess("TravellersRest.exe")]
     public class TRBarPlugin : BaseUnityPlugin
     {
@@ -22,8 +22,8 @@ namespace TRBarPlugin
             Directory.CreateDirectory(logDir);
             LogPath = Path.Combine(logDir, "bar_debug.txt");
             try { File.Delete(LogPath); } catch {}
-            File.WriteAllText(LogPath, "TRBar 1.2.0\n");
-            Logger.LogInfo("TRBar 1.2.0");
+            File.WriteAllText(LogPath, "TRBar 1.3.0\n");
+            Logger.LogInfo("TRBar 1.3.0");
             
             // Cleanup old
             var old = FindObjectOfType<BarTrackerManager>();
@@ -32,6 +32,10 @@ namespace TRBarPlugin
             GameObject go = new GameObject("TRBar_Tracker");
             GameObject.DontDestroyOnLoad(go);
             go.AddComponent<BarTrackerManager>();
+            
+            var loadMsg = new GameObject("LoadMsg").AddComponent<LoadStatusUI>();
+            loadMsg.ModName = "TRBar";
+            DontDestroyOnLoad(loadMsg.gameObject);
             
             UnityEngine.SceneManagement.SceneManager.sceneLoaded += OnSceneLoaded;
         }
@@ -50,6 +54,24 @@ namespace TRBarPlugin
              } catch (Exception ex) {
                  File.AppendAllText(LogPath, "SceneLoad Err: " + ex.Message + "\n");
              }
+        }
+    }
+
+    public class LoadStatusUI : MonoBehaviour {
+        public string ModName = "";
+        private float alpha = 1f;
+        void OnGUI() {
+            if (alpha <= 0) { Destroy(this.gameObject); return; }
+            GUI.color = new Color(0.2f, 1f, 0.2f, alpha);
+            GUIStyle style = new GUIStyle(GUI.skin.label);
+            style.fontSize = 20; style.fontStyle = FontStyle.Bold;
+            
+            GUI.color = new Color(0, 0, 0, alpha);
+            GUI.Label(new Rect(21, 21, 400, 50), ModName + " Loaded!", style);
+            GUI.color = new Color(0.2f, 1f, 0.2f, alpha);
+            GUI.Label(new Rect(20, 20, 400, 50), ModName + " Loaded!", style);
+            
+            alpha -= Time.deltaTime / 5f;
         }
     }
 
@@ -85,7 +107,11 @@ namespace TRBarPlugin
         
         // Settings
         private float _updateInterval = 1.0f;
-        private float _timer = 0f;
+        private float _rescanInterval = 5.0f;
+        private float _nextDispenserScanTime = 0f;
+        private Coroutine _loopCoroutine;
+        private DrinkDispenser[] _cachedDispensers = new DrinkDispenser[0];
+        private FieldInfo _tavernOpenField;
 
         // Memory Optimization
         private System.Text.StringBuilder _sb = new System.Text.StringBuilder(512);
@@ -96,45 +122,56 @@ namespace TRBarPlugin
         {
             try {
                 CreateUI();
-                StartCoroutine(GameLoop());
+                EnsureGameLoop();
             } catch {}
         }
 
-        void OnEnable() { StartCoroutine(GameLoop()); }
-        void OnDisable() { StopAllCoroutines(); }
+        void OnEnable() { EnsureGameLoop(); }
+        void OnDisable()
+        {
+            if (_loopCoroutine != null) {
+                StopCoroutine(_loopCoroutine);
+                _loopCoroutine = null;
+            }
+        }
+
+        void Update()
+        {
+            if (Input.GetKeyDown(KeyCode.F3))
+            {
+                _showUI = !_showUI;
+                if (_uiObj != null) _uiObj.SetActive(_showUI);
+            }
+        }
 
         public void ForceRecreate()
         {
             try {
                 if (_uiObj == null) CreateUI();
-                StopAllCoroutines();
-                StartCoroutine(GameLoop());
+                EnsureGameLoop();
             } catch {}
+        }
+
+        private void EnsureGameLoop()
+        {
+            if (_loopCoroutine == null) {
+                _loopCoroutine = StartCoroutine(GameLoop());
+            }
         }
 
         System.Collections.IEnumerator GameLoop()
         {
+            WaitForSecondsRealtime wait = new WaitForSecondsRealtime(_updateInterval);
             while (true)
             {
                 if (_uiObj == null) CreateUI();
-
-                if (Input.GetKeyDown(KeyCode.F6))
-                {
-                    _showUI = !_showUI;
-                    if (_uiObj != null) _uiObj.SetActive(_showUI);
-                }
-
-                _timer += Time.unscaledDeltaTime;
-                if (_timer >= _updateInterval)
-                {
-                    _timer = 0f;
+                if (_showUI && _uiObj != null && _uiObj.activeInHierarchy) {
                     try {
                         ScanBar();
                         UpdateText();
                     } catch {}
                 }
-
-                yield return null;
+                yield return wait;
             }
         }
 
@@ -147,10 +184,8 @@ namespace TRBarPlugin
                 DontDestroyOnLoad(_uiObj);
 
                 Canvas c = _uiObj.AddComponent<Canvas>();
-                c.renderMode = RenderMode.ScreenSpaceCamera;
-                c.worldCamera = Camera.main;
-                c.planeDistance = 5;
-                c.sortingOrder = 100;
+                c.renderMode = RenderMode.ScreenSpaceOverlay;
+                c.sortingOrder = 103;
 
                 CanvasScaler cs = _uiObj.AddComponent<CanvasScaler>();
                 cs.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
@@ -163,13 +198,14 @@ namespace TRBarPlugin
 
                 Image border = panel.AddComponent<Image>();
                 border.color = new Color(0.6f, 0.4f, 0.2f);
+                border.raycastTarget = false;
 
                 _panelRT = panel.GetComponent<RectTransform>();
                 if (_panelRT == null) _panelRT = panel.AddComponent<RectTransform>();
 
                 _panelRT.anchorMin = new Vector2(1, 1); _panelRT.anchorMax = new Vector2(1, 1);
                 _panelRT.pivot = new Vector2(1, 1);
-                _panelRT.anchoredPosition = new Vector2(-20, -120 - 410);
+                _panelRT.anchoredPosition = new Vector2(-20, -600);
                 _panelRT.sizeDelta = new Vector2(360, 400);
 
                 GameObject bg = new GameObject("Background");
@@ -177,6 +213,8 @@ namespace TRBarPlugin
 
                 Image bgImg = bg.AddComponent<Image>();
                 bgImg.color = new Color(0.15f, 0.1f, 0.05f, 0.98f);
+                bgImg.raycastTarget = true;
+                bg.AddComponent<WindowPointerFocus>();
 
                 RectTransform bgRT = bg.GetComponent<RectTransform>();
                 if (bgRT == null) bgRT = bg.AddComponent<RectTransform>();
@@ -213,10 +251,11 @@ namespace TRBarPlugin
                     hTitle.transform.SetParent(header.transform, false);
                     Text ht = hTitle.AddComponent<Text>();
                     if (uiFont != null) ht.font = uiFont;
-                    ht.text = "TR BAR 1.2.0";
+                    ht.text = "TR BAR 1.3.0 (F3)";
                     ht.alignment = TextAnchor.MiddleCenter;
                     ht.color = new Color(1f, 0.8f, 0.4f);
                     ht.fontSize = 14;
+                    ht.raycastTarget = false;
 
                     RectTransform htRT = hTitle.GetComponent<RectTransform>();
                     if (htRT == null) htRT = hTitle.AddComponent<RectTransform>();
@@ -229,9 +268,86 @@ namespace TRBarPlugin
                 WindowDestroyer drag = header.AddComponent<WindowDestroyer>();
                 drag.TargetMover = _panelRT;
 
+                // --- SCROLL VIEW ---
+                GameObject scrollObj = new GameObject("Scroll View");
+                scrollObj.transform.SetParent(bg.transform, false);
+                RectTransform scrollRT = scrollObj.AddComponent<RectTransform>();
+                scrollRT.anchorMin = Vector2.zero; scrollRT.anchorMax = Vector2.one;
+                scrollRT.offsetMin = new Vector2(10, 25);
+                scrollRT.offsetMax = new Vector2(-25, -35); // Margin for scrollbar
+                
+                ScrollRect sr = scrollObj.AddComponent<ScrollRect>();
+                sr.horizontal = false; sr.vertical = true;
+                sr.scrollSensitivity = 25f; sr.movementType = ScrollRect.MovementType.Elastic;
+                sr.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHide;
+
+                // Viewport
+                GameObject viewport = new GameObject("Viewport");
+                viewport.transform.SetParent(scrollObj.transform, false);
+                viewport.AddComponent<WindowPointerFocus>();
+                RectTransform viewRT = viewport.AddComponent<RectTransform>();
+                viewRT.anchorMin = Vector2.zero; viewRT.anchorMax = Vector2.one;
+                viewRT.sizeDelta = Vector2.zero;
+                viewRT.offsetMin = Vector2.zero; viewRT.offsetMax = Vector2.zero;
+                viewport.AddComponent<RectMask2D>();
+                Image vImg = viewport.AddComponent<Image>();
+                vImg.color = new Color(0, 0, 0, 0); // Transparent raycast target for scrolling
+                vImg.raycastTarget = true;
+                sr.viewport = viewRT;
+
+                // Content
+                GameObject content = new GameObject("Content");
+                content.transform.SetParent(viewport.transform, false);
+                RectTransform contentRT = content.AddComponent<RectTransform>();
+                contentRT.anchorMin = new Vector2(0, 1); contentRT.anchorMax = new Vector2(1, 1);
+                contentRT.pivot = new Vector2(0, 1);
+                contentRT.sizeDelta = new Vector2(0, 0);
+                contentRT.offsetMin = Vector2.zero; contentRT.offsetMax = Vector2.zero;
+                sr.content = contentRT;
+                
+                ContentSizeFitter csf = content.AddComponent<ContentSizeFitter>();
+                csf.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+                VerticalLayoutGroup vlg = content.AddComponent<VerticalLayoutGroup>();
+                vlg.childControlHeight = true; vlg.childControlWidth = true;
+                vlg.childForceExpandHeight = false; vlg.childForceExpandWidth = true;
+
+                // --- SCROLLBAR ---
+                GameObject scrollbarObj = new GameObject("Scrollbar Vertical");
+                scrollbarObj.transform.SetParent(bg.transform, false);
+                RectTransform sbRT = scrollbarObj.AddComponent<RectTransform>();
+                sbRT.anchorMin = new Vector2(1, 0); sbRT.anchorMax = new Vector2(1, 1);
+                sbRT.pivot = new Vector2(1, 1);
+                sbRT.anchoredPosition = new Vector2(-5, -35); 
+                sbRT.sizeDelta = new Vector2(15, -60);
+                
+                Image sbBgImg = scrollbarObj.AddComponent<Image>();
+                sbBgImg.color = new Color(0.1f, 0.1f, 0.1f, 0.5f);
+                sbBgImg.raycastTarget = false;
+                
+                Scrollbar sb = scrollbarObj.AddComponent<Scrollbar>();
+                sb.direction = Scrollbar.Direction.BottomToTop;
+                sr.verticalScrollbar = sb;
+
+                GameObject slidingArea = new GameObject("Sliding Area");
+                slidingArea.transform.SetParent(scrollbarObj.transform, false);
+                RectTransform slideRT = slidingArea.AddComponent<RectTransform>();
+                slideRT.anchorMin = Vector2.zero; slideRT.anchorMax = Vector2.one;
+                slideRT.sizeDelta = Vector2.zero;
+                slideRT.offsetMin = Vector2.zero; slideRT.offsetMax = Vector2.zero;
+
+                GameObject handle = new GameObject("Handle");
+                handle.transform.SetParent(slidingArea.transform, false);
+                RectTransform handleRT = handle.AddComponent<RectTransform>();
+                handleRT.sizeDelta = Vector2.zero;
+                handleRT.offsetMin = Vector2.zero; handleRT.offsetMax = Vector2.zero;
+                Image handleImg = handle.AddComponent<Image>();
+                handleImg.color = new Color(0.4f, 0.4f, 0.4f, 0.8f);
+                sb.handleRect = handleRT;
+                sb.targetGraphic = handleImg;
+
                 // Text Content
                 GameObject textObj = new GameObject("ContentText");
-                textObj.transform.SetParent(bg.transform, false);
+                textObj.transform.SetParent(content.transform, false); // Inside Scroll View
                 _mainText = textObj.AddComponent<Text>();
 
                 try {
@@ -244,12 +360,10 @@ namespace TRBarPlugin
                 _mainText.color = Color.white;
                 _mainText.fontSize = 12;
                 _mainText.alignment = TextAnchor.UpperLeft;
-                _mainText.horizontalOverflow = HorizontalWrapMode.Overflow;
-
-                RectTransform trt = textObj.GetComponent<RectTransform>();
-                trt.anchorMin = Vector2.zero; trt.anchorMax = Vector2.one;
-                trt.offsetMin = new Vector2(10, 25);
-                trt.offsetMax = new Vector2(-10, -35);
+                _mainText.horizontalOverflow = HorizontalWrapMode.Overflow; 
+                _mainText.verticalOverflow = VerticalWrapMode.Truncate;
+                
+                // Trt managed by VerticalLayoutGroup now
 
                 // --- RESIZE GRIP (Bottom-Right Triangle) ---
                 GameObject grip = new GameObject("ResizeGrip");
@@ -294,7 +408,7 @@ namespace TRBarPlugin
                 Button btn = btnObj.AddComponent<Button>();
                 CollapseHandler ch = btnObj.AddComponent<CollapseHandler>();
                 ch.PanelRect = _panelRT;
-                ch.ContentObj = textObj;
+                ch.ContentObj = scrollObj; // Collapse the scroll view hierarchy
                 ch.ExpandedHeight = 400;
                 ch.CollapsedHeight = 35;
                 btn.onClick.AddListener(ch.OnToggle);
@@ -314,29 +428,37 @@ namespace TRBarPlugin
             try {
                 // --- 1. Tavern Open State ---
                 bool isOpen = false;
-                if (TavernManager.OFDGCPAEGOM != null)
+                if (TavernManager.GOKBJFAMHMJ != null)
                 {
-                    isOpen = TavernManager.OFDGCPAEGOM.NLLHCAJBECF;
+                    if (_tavernOpenField == null)
+                    {
+                        _tavernOpenField = typeof(TavernManager).GetField("_open", BindingFlags.Instance | BindingFlags.NonPublic);
+                    }
+
+                    if (_tavernOpenField != null)
+                    {
+                        isOpen = (bool)_tavernOpenField.GetValue(TavernManager.GOKBJFAMHMJ);
+                    }
                 }
 
                 // --- 2. Track Taps (Kegs) ---
                 var currentMap = _kegs.ToDictionary(k => k.Id, k => k);
                 _kegs.Clear();
 
-                var dispensers = FindObjectsOfType<DrinkDispenser>();
-                
-                // Use InstanceID to avoid "Key: 0" duplicates
-                var activeDispensers = new List<DrinkDispenser>();
-                foreach(var d in dispensers) {
-                    if (d.isActiveAndEnabled && d.slots != null && d.slots.Length > 0 && d.slots[0].itemInstance != null) {
-                        activeDispensers.Add(d);
-                    }
+                if (_cachedDispensers.Length == 0 || Time.unscaledTime >= _nextDispenserScanTime)
+                {
+                    _cachedDispensers = FindObjectsOfType<DrinkDispenser>();
+                    _nextDispenserScanTime = Time.unscaledTime + _rescanInterval;
                 }
 
                 var barInv = BarMenuInventory.GetInstance();
 
-                foreach (var d in activeDispensers)
+                foreach (var d in _cachedDispensers)
                 {
+                    if (d == null || !d.isActiveAndEnabled || d.slots == null || d.slots.Length == 0 || d.slots[0].itemInstance == null) {
+                        continue;
+                    }
+
                     var slot = d.slots[0];
                     int uniqueId = d.GetInstanceID();
 
@@ -572,23 +694,58 @@ namespace TRBarPlugin
         }
     }
 
+    public static class WindowLayerUtil
+    {
+        public static void BringToFront(Component component)
+        {
+            if (component == null) return;
+
+            Canvas rootCanvas = component.GetComponentInParent<Canvas>();
+            if (rootCanvas != null && rootCanvas.isRootCanvas)
+            {
+                rootCanvas.overrideSorting = true;
+                rootCanvas.sortingOrder = 1000 + (int)((DateTime.UtcNow.Ticks / TimeSpan.TicksPerMillisecond) % 100000);
+            }
+
+            RectTransform rect = component.GetComponent<RectTransform>();
+            if (rect != null) rect.SetAsLastSibling();
+        }
+    }
+
+    public class WindowPointerFocus : MonoBehaviour, UnityEngine.EventSystems.IPointerDownHandler
+    {
+        public void OnPointerDown(UnityEngine.EventSystems.PointerEventData data)
+        {
+            WindowLayerUtil.BringToFront(this);
+        }
+    }
+
     /// <summary>Handles window dragging via header.</summary>
-    public class WindowDestroyer : MonoBehaviour, UnityEngine.EventSystems.IDragHandler
+    public class WindowDestroyer : MonoBehaviour, UnityEngine.EventSystems.IDragHandler, UnityEngine.EventSystems.IPointerDownHandler
     {
         public RectTransform TargetMover;
+        public void OnPointerDown(UnityEngine.EventSystems.PointerEventData data) {
+            WindowLayerUtil.BringToFront(this);
+        }
         public void OnDrag(UnityEngine.EventSystems.PointerEventData data) {
+            WindowLayerUtil.BringToFront(this);
             if (TargetMover) TargetMover.anchoredPosition += data.delta;
         }
     }
 
     /// <summary>Handles window resizing via bottom-right corner grip.</summary>
-    public class ResizeHandler : MonoBehaviour, UnityEngine.EventSystems.IDragHandler
+    public class ResizeHandler : MonoBehaviour, UnityEngine.EventSystems.IDragHandler, UnityEngine.EventSystems.IPointerDownHandler
     {
         public RectTransform PanelRect;
         public Vector2 MinSize = new Vector2(200, 150);
         public Vector2 MaxSize = new Vector2(800, 800);
 
+        public void OnPointerDown(UnityEngine.EventSystems.PointerEventData data) {
+            WindowLayerUtil.BringToFront(this);
+        }
+
         public void OnDrag(UnityEngine.EventSystems.PointerEventData data) {
+            WindowLayerUtil.BringToFront(this);
             if (PanelRect == null) return;
             Vector2 size = PanelRect.sizeDelta;
             size.x += data.delta.x;
