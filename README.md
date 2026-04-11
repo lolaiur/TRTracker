@@ -6,7 +6,7 @@
 
 A collection of BepInEx plugins that enhance gameplay in Traveler's Rest.
 
-## Supported game version 0.7.4.10
+## Supported game version 0.7.5.10
 
 
 <img width="1418" height="643" alt="image" src="https://github.com/user-attachments/assets/10f860d0-ab79-4a52-a585-ec54647c22ab" />
