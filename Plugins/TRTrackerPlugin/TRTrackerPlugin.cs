@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Linq;
@@ -12,7 +13,7 @@ using UnityEngine.SceneManagement;
 
 namespace TRTracker
 {
-    [BepInPlugin("com.lolaiur.trtracker", "Tavern Tracker", "1.3.0")]
+    [BepInPlugin("com.lolaiur.trtracker", "Tavern Tracker", "1.3.1")]
     public class TRTrackerPlugin : BaseUnityPlugin
     {
         public static TRTrackerPlugin Instance;
@@ -25,7 +26,7 @@ namespace TRTracker
              Directory.CreateDirectory(logDir);
              LogPath = Path.Combine(logDir, "tracker_debug.txt");
              try { if (File.Exists(LogPath)) File.Delete(LogPath); } catch { }
-             try { File.WriteAllText(LogPath, "TRTracker 1.3.0\n"); } catch { }
+             try { File.WriteAllText(LogPath, "TRTracker 1.3.1\n"); } catch { }
              
              // Cleanup old
              var old = FindObjectOfType<TrackerManager>();
@@ -69,6 +70,7 @@ namespace TRTracker
         public static UIHandler UI;
         public static StatsHandler Stats;
         public static TimeHandler TimeCtrl;
+        private Coroutine _refreshLoop;
         
         void Awake() {
              Stats = new StatsHandler();
@@ -81,6 +83,7 @@ namespace TRTracker
                 GameReflection.ClearSingletonCache();
                 if(scene.name == "Gameplay") {
                     TRTrackerPatch.ResetDump();
+                    EnsureRefreshLoop();
                 }
                 ForceRecreate();
              } catch {}
@@ -96,6 +99,25 @@ namespace TRTracker
 
         void Start() {
             CreateUI();
+            EnsureRefreshLoop();
+        }
+
+        void OnDestroy() {
+            SceneManager.sceneLoaded -= OnSceneLoaded;
+            if (_refreshLoop != null) StopCoroutine(_refreshLoop);
+            _refreshLoop = null;
+        }
+
+        private void EnsureRefreshLoop() {
+            if (_refreshLoop == null) _refreshLoop = StartCoroutine(RefreshTrackerLoop());
+        }
+
+        private IEnumerator RefreshTrackerLoop() {
+            var delay = new WaitForSecondsRealtime(0.25f);
+            while (true) {
+                try { TRTrackerPatch.Refresh(); } catch {}
+                yield return delay;
+            }
         }
 
         private bool _showUI = true;
@@ -188,7 +210,7 @@ namespace TRTracker
                 hTitle.transform.SetParent(header.transform, false);
                 Text ht = hTitle.AddComponent<Text>();
                 ht.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-                ht.text = "TAVERN TRACKER 1.3.0 (F1)";
+                ht.text = "TAVERN TRACKER 1.3.1 (F1)";
                 ht.alignment = TextAnchor.MiddleCenter;
                 ht.color = new Color(1f, 0.8f, 0.4f);
                 ht.fontSize = 14;
@@ -203,20 +225,34 @@ namespace TRTracker
                 GameObject btnObj = new GameObject("CollapseBtn");
                 btnObj.transform.SetParent(header.transform, false);
                 Image btnImg = btnObj.AddComponent<Image>();
-                btnImg.color = Color.green;
+                btnImg.color = new Color(0.18f, 0.28f, 0.18f, 1f);
                 RectTransform btnRT = btnObj.GetComponent<RectTransform>();
                 if (btnRT == null) btnRT = btnObj.AddComponent<RectTransform>();
                 
                 btnRT.anchorMin = new Vector2(1, 0.5f); btnRT.anchorMax = new Vector2(1, 0.5f);
                 btnRT.pivot = new Vector2(1, 0.5f);
                 btnRT.anchoredPosition = new Vector2(-5, 0);
-                btnRT.sizeDelta = new Vector2(20, 20);
+                btnRT.sizeDelta = new Vector2(18, 18);
                 
                 Button btn = btnObj.AddComponent<Button>();
+                btn.targetGraphic = btnImg;
+                GameObject btnLabelObj = new GameObject("Label");
+                btnLabelObj.transform.SetParent(btnObj.transform, false);
+                Text btnLabel = btnLabelObj.AddComponent<Text>();
+                btnLabel.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+                btnLabel.text = "-";
+                btnLabel.alignment = TextAnchor.MiddleCenter;
+                btnLabel.color = Color.white;
+                btnLabel.fontStyle = FontStyle.Bold;
+                btnLabel.raycastTarget = false;
+                RectTransform btnLabelRT = btnLabelObj.GetComponent<RectTransform>();
+                btnLabelRT.anchorMin = Vector2.zero; btnLabelRT.anchorMax = Vector2.one;
+                btnLabelRT.offsetMin = Vector2.zero; btnLabelRT.offsetMax = Vector2.zero;
                 CollapseHandler ch = btnObj.AddComponent<CollapseHandler>();
                 ch.PanelRect = panelRT;
                 ch.ExpandedHeight = 420; 
                 ch.CollapsedHeight = 35; 
+                ch.Label = btnLabel;
                 btn.onClick.AddListener(ch.OnToggle);
 
                 UI = panel.AddComponent<UIHandler>();
@@ -549,14 +585,18 @@ namespace TRTracker
         public bool IsFrozen=false; private float s=1f;
         public void ToggleFreeze() {
             try {
-                var wt = UnityEngine.Object.FindObjectOfType<WorldTime>();
-                if(wt==null) return;
                 FieldInfo f = typeof(WorldTime).GetField("multiplier", BindingFlags.Public|BindingFlags.Static);
+                if (f == null) return;
                 float cur = (float)f.GetValue(null);
-                MethodInfo m = typeof(WorldTime).GetMethod("SetTimeMultiplier", BindingFlags.Public|BindingFlags.Instance);
-                if(cur>0.01f) { s=cur; m.Invoke(wt, new object[]{0f}); IsFrozen=true; }
-                else { m.Invoke(wt, new object[]{s}); IsFrozen=false; }
+                MethodInfo m = typeof(WorldTime).GetMethod("SetTimeMultiplier", BindingFlags.Public|BindingFlags.Static);
+                if(cur>0.01f) { s=cur; SetMultiplier(m, f, 0f); IsFrozen=true; }
+                else { SetMultiplier(m, f, s); IsFrozen=false; }
             } catch {}
+        }
+
+        private void SetMultiplier(MethodInfo method, FieldInfo field, float value) {
+            if (method != null) method.Invoke(null, new object[]{ value });
+            else field.SetValue(null, value);
         }
     }
 
@@ -676,14 +716,40 @@ namespace TRTracker
         }
     }
 
-    [HarmonyPatch(typeof(TavernManager), "get_open")]
     public static class TRTrackerPatch {
         private static DateTime lastUIUpdate = DateTime.MinValue;
-        private static bool hasDumpedTM = false;
         private const double UIUpdateIntervalSeconds = 0.25;
-        public static void ResetDump() { hasDumpedTM = false; }
-        
-        static void Postfix(TavernManager __instance, bool __result) { if ((DateTime.Now - lastUIUpdate).TotalSeconds > UIUpdateIntervalSeconds) { lastUIUpdate = DateTime.Now; if (TrackerManager.UI != null && TrackerManager.UI.MainText != null && TrackerManager.UI.MainText.gameObject.activeInHierarchy) Gather(__instance, __result); } }
+        public static void ResetDump() {}
+
+        public static void Refresh() {
+            if ((DateTime.Now - lastUIUpdate).TotalSeconds <= UIUpdateIntervalSeconds) return;
+            lastUIUpdate = DateTime.Now;
+            if (TrackerManager.UI == null || TrackerManager.UI.MainText == null || !TrackerManager.UI.MainText.gameObject.activeInHierarchy) return;
+
+            TavernManager tm = GameReflection.FindSingleton<TavernManager>();
+            if (tm == null) return;
+            Gather(tm, GetOpenState(tm));
+        }
+
+        private static bool GetOpenState(TavernManager tm) {
+            FieldInfo openField = typeof(TavernManager).GetField("_open", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+            if (openField != null && openField.FieldType == typeof(bool)) {
+                try { return (bool)openField.GetValue(tm); } catch {}
+            }
+
+            foreach (PropertyInfo prop in typeof(TavernManager).GetProperties(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)) {
+                if (prop.PropertyType != typeof(bool) || prop.GetIndexParameters().Length != 0) continue;
+                try {
+                    MethodInfo getter = prop.GetGetMethod(true);
+                    if (getter != null && getter.IsSpecialName) {
+                        return (bool)prop.GetValue(tm, null);
+                    }
+                } catch {}
+            }
+
+            return false;
+        }
+
         static void Gather(TavernManager tm, bool o) {
             try {
                  if (tm == null) return;
@@ -828,6 +894,7 @@ namespace TRTracker
         public float ExpandedHeight;
         public float CollapsedHeight;
         public bool IsCollapsed = false;
+        public Text Label;
         
         public void OnToggle()
         {
@@ -840,6 +907,7 @@ namespace TRTracker
                 if (TrackerManager.UI.ContentObj != null) TrackerManager.UI.ContentObj.gameObject.SetActive(!IsCollapsed);
                 else if (TrackerManager.UI.MainText != null) TrackerManager.UI.MainText.gameObject.SetActive(!IsCollapsed);
             }
+            if (Label != null) Label.text = IsCollapsed ? "+" : "-";
         }
     }
 }

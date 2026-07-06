@@ -28,6 +28,7 @@ namespace TRStats
         // New toggles
         public static ConfigEntry<bool> InfiniteCoal;
         public static ConfigEntry<bool> InfiniteWater;
+        public static ConfigEntry<bool> SkipMinePiecePoolPrewarm;
 
         void Awake()
         {
@@ -38,8 +39,8 @@ namespace TRStats
             Directory.CreateDirectory(logDir);
             LogPath = Path.Combine(logDir, "trstats_debug.txt");
             try { File.Delete(LogPath); } catch { }
-            File.WriteAllText(LogPath, "TRStats 1.1.0\n");
-            Logger.LogInfo("TRStats 1.1.0");
+            File.WriteAllText(LogPath, "TRStats 1.3.0\n");
+            Logger.LogInfo("TRStats 1.3.0");
 
             // Initialize config
             PlayerSpeedMultiplier = Config.Bind("Player", "SpeedMultiplier", 1.0f,
@@ -60,6 +61,9 @@ namespace TRStats
 
             InfiniteWater = Config.Bind("Cheats", "InfiniteWater", false,
                 "When enabled, water buckets are never emptied");
+
+            SkipMinePiecePoolPrewarm = Config.Bind("Compatibility", "SkipMinePiecePoolPrewarm", true,
+                "Skips the updated game's mine-piece pool prewarm that can hard-crash while loading saves");
 
             // Initialize patch-specific config
             Patches.InitializeConfig(Config);
@@ -290,7 +294,7 @@ namespace TRStats
                 hTitle.transform.SetParent(header.transform, false);
                 Text ht = hTitle.AddComponent<Text>();
                 ht.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-                ht.text = "TR STATS 1.1.0 (F4)";
+                ht.text = "TR STATS 1.3.0 (F4)";
                 ht.alignment = TextAnchor.MiddleCenter;
                 ht.color = new Color(1f, 0.8f, 0.4f);
                 ht.fontSize = 14;
@@ -309,19 +313,35 @@ namespace TRStats
                 GameObject collapseBtn = new GameObject("CollapseBtn");
                 collapseBtn.transform.SetParent(header.transform, false);
                 Image collapseBtnImg = collapseBtn.AddComponent<Image>();
-                collapseBtnImg.color = Color.green;
+                collapseBtnImg.color = new Color(0.18f, 0.28f, 0.18f, 1f);
                 RectTransform collapseBtnRT = collapseBtn.GetComponent<RectTransform>();
                 collapseBtnRT.anchorMin = new Vector2(1, 0.5f);
                 collapseBtnRT.anchorMax = new Vector2(1, 0.5f);
                 collapseBtnRT.pivot = new Vector2(1, 0.5f);
                 collapseBtnRT.anchoredPosition = new Vector2(-5, 0);
-                collapseBtnRT.sizeDelta = new Vector2(20, 20);
+                collapseBtnRT.sizeDelta = new Vector2(18, 18);
 
                 Button collapseButton = collapseBtn.AddComponent<Button>();
+                collapseButton.targetGraphic = collapseBtnImg;
+                GameObject collapseLabelObj = new GameObject("Label");
+                collapseLabelObj.transform.SetParent(collapseBtn.transform, false);
+                Text collapseLabel = collapseLabelObj.AddComponent<Text>();
+                collapseLabel.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+                collapseLabel.text = "-";
+                collapseLabel.alignment = TextAnchor.MiddleCenter;
+                collapseLabel.color = Color.white;
+                collapseLabel.fontStyle = FontStyle.Bold;
+                collapseLabel.raycastTarget = false;
+                RectTransform collapseLabelRT = collapseLabelObj.GetComponent<RectTransform>();
+                collapseLabelRT.anchorMin = Vector2.zero;
+                collapseLabelRT.anchorMax = Vector2.one;
+                collapseLabelRT.offsetMin = Vector2.zero;
+                collapseLabelRT.offsetMax = Vector2.zero;
                 CollapseHandler ch = collapseBtn.AddComponent<CollapseHandler>();
                 ch.PanelRect = _panelRT;
                 ch.ExpandedHeight = _expandedHeight;
                 ch.CollapsedHeight = _collapsedHeight;
+                ch.Label = collapseLabel;
                 collapseButton.onClick.AddListener(ch.OnToggle);
 
                 // --- SCROLL VIEW ---
@@ -449,12 +469,18 @@ namespace TRStats
                 yPos -= 5;
                 GameObject infoObj = new GameObject("InfoText");
                 infoObj.transform.SetParent(_contentObj.transform, false);
+                LayoutElement infoLayout = infoObj.AddComponent<LayoutElement>();
+                infoLayout.minHeight = 90;
                 _infoText = infoObj.AddComponent<Text>();
                 _infoText.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
                 _infoText.text = "Loading...";
                 _infoText.color = new Color(0.6f, 0.6f, 0.6f);
                 _infoText.fontSize = 11;
                 _infoText.alignment = TextAnchor.UpperLeft;
+                _infoText.horizontalOverflow = HorizontalWrapMode.Wrap;
+                _infoText.verticalOverflow = VerticalWrapMode.Overflow;
+                ContentSizeFitter infoFitter = infoObj.AddComponent<ContentSizeFitter>();
+                infoFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
                 RectTransform infoRT = infoObj.GetComponent<RectTransform>();
                 infoRT.anchorMin = new Vector2(0, 1);
                 infoRT.anchorMax = new Vector2(1, 1);
@@ -779,7 +805,7 @@ namespace TRStats
                         CropSetter cropSetter = g.cropSetter;
                         if (cropSetter != null)
                         {
-                            Crop crop = cropSetter.PILMFLODILL;
+                            Crop crop = TRStatsReflection.GetInstancePropertyValueByType<Crop>(cropSetter);
                             if (crop != null && crop.growingSprites != null)
                             {
                                 int maxStage = crop.growingSprites.Length - 1;
@@ -872,6 +898,116 @@ namespace TRStats
         }
     }
 
+    internal static class TRStatsReflection
+    {
+        private static readonly BindingFlags AnyStatic = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static;
+        private static readonly BindingFlags AnyInstance = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
+
+        public static T FindSingleton<T>() where T : class
+        {
+            Type type = typeof(T);
+
+            foreach (PropertyInfo prop in type.GetProperties(AnyStatic))
+            {
+                if (prop.PropertyType != type || prop.GetIndexParameters().Length != 0) continue;
+                try
+                {
+                    T value = prop.GetValue(null, null) as T;
+                    if (value != null) return value;
+                }
+                catch { }
+            }
+
+            foreach (FieldInfo field in type.GetFields(AnyStatic))
+            {
+                if (field.FieldType != type) continue;
+                try
+                {
+                    T value = field.GetValue(null) as T;
+                    if (value != null) return value;
+                }
+                catch { }
+            }
+
+            return UnityEngine.Object.FindObjectOfType(type) as T;
+        }
+
+        public static T GetInstancePropertyValueByType<T>(object instance) where T : class
+        {
+            if (instance == null) return null;
+
+            foreach (PropertyInfo prop in instance.GetType().GetProperties(AnyInstance))
+            {
+                if (prop.PropertyType != typeof(T) || prop.GetIndexParameters().Length != 0) continue;
+                try
+                {
+                    T value = prop.GetValue(instance, null) as T;
+                    if (value != null) return value;
+                }
+                catch { }
+            }
+
+            return null;
+        }
+
+        public static T GetInstanceFieldValueByType<T>(object instance) where T : class
+        {
+            if (instance == null) return null;
+
+            foreach (FieldInfo field in instance.GetType().GetFields(AnyInstance))
+            {
+                if (field.FieldType != typeof(T)) continue;
+                try
+                {
+                    T value = field.GetValue(instance) as T;
+                    if (value != null) return value;
+                }
+                catch { }
+            }
+
+            return null;
+        }
+
+        public static FieldInfo FindInstanceFieldByType<TOwner, TValue>() where TValue : class
+        {
+            foreach (FieldInfo field in typeof(TOwner).GetFields(AnyInstance))
+            {
+                if (field.FieldType == typeof(TValue)) return field;
+            }
+
+            return null;
+        }
+
+        public static PropertyInfo FindInstancePropertyByType<TOwner, TValue>() where TValue : class
+        {
+            foreach (PropertyInfo prop in typeof(TOwner).GetProperties(AnyInstance))
+            {
+                if (prop.PropertyType == typeof(TValue) && prop.GetIndexParameters().Length == 0) return prop;
+            }
+
+            return null;
+        }
+
+        public static int GetCrafterFuel(Crafter crafter)
+        {
+            if (crafter == null) return 0;
+
+            FieldInfo fuelField = crafter.GetType().GetField("fuel", AnyInstance);
+            if (fuelField != null && fuelField.FieldType == typeof(int))
+            {
+                try { return (int)fuelField.GetValue(crafter); } catch { }
+            }
+
+            foreach (PropertyInfo prop in crafter.GetType().GetProperties(AnyInstance))
+            {
+                if (prop.PropertyType != typeof(int) || prop.GetIndexParameters().Length != 0) continue;
+                try { return (int)prop.GetValue(crafter, null); } catch { }
+            }
+
+            return 0;
+        }
+    }
+
     public static class WindowLayerUtil
     {
         public static void BringToFront(Component component)
@@ -943,6 +1079,7 @@ namespace TRStats
         public float ExpandedHeight;
         public float CollapsedHeight;
         public bool IsCollapsed = false;
+        public Text Label;
 
         public void OnToggle()
         {
@@ -955,6 +1092,7 @@ namespace TRStats
             {
                 ContentObj.SetActive(!IsCollapsed);
             }
+            if (Label != null) Label.text = IsCollapsed ? "+" : "-";
         }
     }
 
@@ -962,6 +1100,6 @@ namespace TRStats
     {
         public const string PLUGIN_GUID = "com.trstats.mod";
         public const string PLUGIN_NAME = "TR Stats";
-        public const string PLUGIN_VERSION = "1.1.0";
+        public const string PLUGIN_VERSION = "1.3.0";
     }
 }

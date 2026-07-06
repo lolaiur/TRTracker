@@ -12,7 +12,7 @@ A collection of BepInEx plugins that enhance gameplay in Traveler's Rest.
 <img width="1418" height="643" alt="image" src="https://github.com/user-attachments/assets/10f860d0-ab79-4a52-a585-ec54647c22ab" />
 
 
-The mod comes in the three DLLs listed below. Each can be installed individually or all together. 
+The collection comes in the five DLLs listed below. Each can be installed individually or all together. 
 
 
 ## Mods Included
@@ -25,6 +25,12 @@ Enhanced barrel management and tracking features.
 
 ### 📊 TRBar 
 Improved bar UI with additional functionality.
+
+### 🍔 TRStats
+Cheats and gameplay tweaks — player speed, customer capacity, price modifiers, employee work-avoidance, infinite coal/water, and crop watering/growth tools. Toggle with **F4**.
+
+### 🔄 TRAutoloader
+Automated food and drink loading — keeps the bar menu stocked and tops off drink dispensers and bar barrels from an assigned loader container. Toggle with **F5**.
 
 ## Installation
 
@@ -79,6 +85,8 @@ All source code is available in this repository for review:
 - `Plugins/TRTrackerPlugin/TRTrackerPlugin.cs`
 - `Plugins/TRBarPlugin/TRBarPlugin.cs`
 - `Plugins/TRBarrelsPlugin/TRBarrelsPlugin.cs`
+- `Plugins/TRStatsPlugin/TRStatsPlugin.cs`
+- `Plugins/TRAutoloaderPlugin/TRAutoloaderPlugin.cs`
 
 The pre-built DLLs in releases are compiled from this exact source code. Version numbers in the source files match the release versions for verification.
 

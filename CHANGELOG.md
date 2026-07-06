@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-07-06
+
+### TRAutoloader 1.0.0
+
+- Split the auto food/drink loader out of TRStats into its own standalone plugin (`com.lolaiur.trautoloader`, toggle **F5**).
+- Optimized the loader tick to remove the per-tick reflection storms that dragged game performance:
+  - Cached the `TavernZonesManager` singleton instead of re-resolving it via reflection on every dispenser and barrel zone check (previously the dominant per-tick cost).
+  - Wired up the compatibility cache so drink-source compatibility probes skip the reflection item clone on the hot path.
+  - Cached the obfuscated price field per item type instead of walking the type hierarchy for every candidate each tick.
+- Added a compact loader panel (assign/clear food and drink loaders, interval, live status).
+
+### TRStats 1.3.0
+
+- Removed the autoloader (now shipped as TRAutoloader). The autoloader config keys (`FoodLoaderGuid`, `DrinkLoaderGuid`, `IntervalSeconds`) moved from `com.trstats.mod.cfg` to `com.lolaiur.trautoloader.cfg` — reassign your loaders once after updating.
+
 ## 2026-04-10
 
 ### TRTracker 1.3.0

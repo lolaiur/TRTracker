@@ -263,7 +263,7 @@ namespace TRStats
                 if (Plugin.InfiniteCoal != null && Plugin.InfiniteCoal.Value)
                 {
                     // Get current fuel via property
-                    int currentFuel = __instance.AHCDANNFGPG;
+                    int currentFuel = TRStatsReflection.GetCrafterFuel(__instance);
 
                     // If new fuel would be less than current (consumption), prevent it
                     if (__0 < currentFuel)
@@ -319,18 +319,78 @@ namespace TRStats
                 if (Plugin.InfiniteWater != null && Plugin.InfiniteWater.Value)
                 {
                     // Check if the item being returned is an empty bucket
-                    if (CommonReferences.GOKBJFAMHMJ != null &&
-                        CommonReferences.GOKBJFAMHMJ.bucketItem != null &&
-                        CommonReferences.GOKBJFAMHMJ.bucketOfWaterItem != null)
+                    CommonReferences commonReferences = TRStatsReflection.FindSingleton<CommonReferences>();
+                    if (commonReferences != null &&
+                        commonReferences.bucketItem != null &&
+                        commonReferences.bucketOfWaterItem != null)
                     {
                         // Compare items - if it's an empty bucket, swap it for water bucket
                         if (__1.item != null &&
-                            string.Equals(__1.item.nameId, CommonReferences.GOKBJFAMHMJ.bucketItem.nameId))
+                            string.Equals(__1.item.nameId, commonReferences.bucketItem.nameId))
                         {
-                            __1.item = CommonReferences.GOKBJFAMHMJ.bucketOfWaterItem;
+                            __1.item = commonReferences.bucketOfWaterItem;
                         }
                     }
                 }
+            }
+        }
+
+        /// <summary>
+        /// Work around a hard crash in the updated game while prewarming mine pieces during Gameplay scene load.
+        /// The pool can still create pieces lazily later; this only skips the up-front clone loop.
+        /// </summary>
+        [HarmonyPatch(typeof(MinePiecePool), "Awake")]
+        public static class MinePiecePoolPatches
+        {
+            private static readonly FieldInfo PoolDictionaryField = FindPoolDictionaryField();
+
+            [HarmonyPrefix]
+            public static bool Awake_Prefix(MinePiecePool __instance)
+            {
+                if (Plugin.SkipMinePiecePoolPrewarm == null || !Plugin.SkipMinePiecePoolPrewarm.Value) return true;
+                if (__instance == null) return true;
+
+                try
+                {
+                    MinePiecePool._instance = __instance;
+                    SeedPoolDictionary(__instance);
+                    File.AppendAllText(Plugin.LogPath, "[Compat] Skipped MinePiecePool prewarm during save load.\n");
+                    return false;
+                }
+                catch (Exception ex)
+                {
+                    try { File.AppendAllText(Plugin.LogPath, "[Compat] MinePiecePool prewarm skip failed: " + ex + "\n"); } catch { }
+                    return true;
+                }
+            }
+
+            private static void SeedPoolDictionary(MinePiecePool pool)
+            {
+                if (PoolDictionaryField == null || pool.poolPieces == null) return;
+
+                Dictionary<int, Queue<MinePiece>> dictionary = PoolDictionaryField.GetValue(pool) as Dictionary<int, Queue<MinePiece>>;
+                if (dictionary == null)
+                {
+                    dictionary = new Dictionary<int, Queue<MinePiece>>();
+                    PoolDictionaryField.SetValue(pool, dictionary);
+                }
+
+                foreach (MinePiece piece in pool.poolPieces)
+                {
+                    if (piece == null) continue;
+                    int key = piece.JBCFIHPKMLF;
+                    if (!dictionary.ContainsKey(key)) dictionary[key] = new Queue<MinePiece>();
+                }
+            }
+
+            private static FieldInfo FindPoolDictionaryField()
+            {
+                foreach (FieldInfo field in typeof(MinePiecePool).GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
+                {
+                    if (field.FieldType == typeof(Dictionary<int, Queue<MinePiece>>)) return field;
+                }
+
+                return null;
             }
         }
     }
