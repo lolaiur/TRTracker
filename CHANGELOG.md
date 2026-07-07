@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-07-06 (3)
+
+### TRAutoloader 1.0.2
+
+- Fixed drinks not loading: kegs/service barrels (non-beer-tap dispensers) keep their drink in `slots[1]`, but the loader was filling `slots[0]` for every dispenser. It now targets `slots[1]` for kegs and `slots[0]` for beer taps (matching how the game itself fills them), and kegs are back on the direct-slot transfer path.
+
+### TRTracker 1.3.2
+
+- Diagnostic build to locate the missing tracker window: logs the manager Start/CreateUI result, OnDestroy, and first Update so we can see whether the panel is created and whether something destroys it. Also bumped the canvas sort order (100 -> 104) so it can't sit behind the other mod windows.
+
 ## 2026-07-06 (2)
 
 ### TRAutoloader 1.0.1

@@ -11,7 +11,7 @@ using UnityEngine.EventSystems;
 
 namespace TRAutoloaderPlugin
 {
-    [BepInPlugin("com.lolaiur.trautoloader", "TR Autoloader", "1.0.1")]
+    [BepInPlugin("com.lolaiur.trautoloader", "TR Autoloader", "1.0.2")]
     [BepInProcess("TravellersRest.exe")]
     public class Plugin : BaseUnityPlugin
     {
@@ -32,8 +32,8 @@ namespace TRAutoloaderPlugin
             Directory.CreateDirectory(logDir);
             LogPath = Path.Combine(logDir, "autoload_debug.txt");
             try { File.Delete(LogPath); } catch { }
-            File.WriteAllText(LogPath, "TR Autoloader 1.0.1\n");
-            Logger.LogInfo("TR Autoloader 1.0.1");
+            File.WriteAllText(LogPath, "TR Autoloader 1.0.2\n");
+            Logger.LogInfo("TR Autoloader 1.0.2");
 
             ToggleUIKey = Config.Bind("UI", "ToggleKey", KeyCode.F5,
                 "Key to toggle the autoloader UI");
@@ -263,7 +263,7 @@ namespace TRAutoloaderPlugin
                 hTitle.transform.SetParent(header.transform, false);
                 Text ht = hTitle.AddComponent<Text>();
                 ht.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-                ht.text = "TR AUTOLOADER 1.0.1 (F5)";
+                ht.text = "TR AUTOLOADER 1.0.2 (F5)";
                 ht.alignment = TextAnchor.MiddleCenter;
                 ht.color = new Color(1f, 0.8f, 0.4f);
                 ht.fontSize = 14;
@@ -868,7 +868,7 @@ namespace TRAutoloaderPlugin
                     unitsMoved += FillDrinkTarget(
                         loader,
                         dispenser,
-                        dispenser.slots[0],
+                        GetDispenserSlot(dispenser),
                         activeDrinkCounts,
                         MaxDrinkUnitsPerTick - unitsMoved,
                         dispenser.isBeerTap ? "tap" : "service barrel");
@@ -981,10 +981,20 @@ namespace TRAutoloaderPlugin
 
         private static bool UsesDirectDrinkSlotTransfer(Container target)
         {
-            // DrinkDispensers (beer taps and kegs alike) accept drinks through the normal Container
-            // add path. Routing non-tap dispensers through it too fixes kegs not loading; only
-            // BanquetBarrel needs direct slot manipulation.
+            DrinkDispenser dispenser = target as DrinkDispenser;
+            if (dispenser != null) return !dispenser.isBeerTap;
+
             return target is BanquetBarrel;
+        }
+
+        // Beer taps pour from slots[0]; service barrels (kegs) keep their drink in slots[1]. The game
+        // itself fills those exact slots (DrinkDispenser references slots[0] for taps, slots[1] for
+        // service barrels), so we must target the matching slot or the keg never fills.
+        private static Slot GetDispenserSlot(DrinkDispenser dispenser)
+        {
+            if (dispenser == null || dispenser.slots == null || dispenser.slots.Length == 0) return null;
+            if (dispenser.isBeerTap) return dispenser.slots[0];
+            return dispenser.slots.Length > 1 ? dispenser.slots[1] : dispenser.slots[0];
         }
 
         private static Slot FindBestFoodSourceSlot(ItemContainer loader, HashSet<int> preferredIds, Dictionary<int, int> currentCounts, Container target)

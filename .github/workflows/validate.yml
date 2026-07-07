@@ -33,11 +33,11 @@ jobs:
     - name: Verify source file versions
       run: |
         echo "Checking plugin versions..."
-        grep -q 'BepInPlugin.*1\.3\.1' Plugins/TRTrackerPlugin/TRTrackerPlugin.cs && echo "✓ TRTrackerPlugin v1.3.1"
+        grep -q 'BepInPlugin.*1\.3\.2' Plugins/TRTrackerPlugin/TRTrackerPlugin.cs && echo "✓ TRTrackerPlugin v1.3.2"
         grep -q 'BepInPlugin.*1\.3\.1' Plugins/TRBarPlugin/TRBarPlugin.cs && echo "✓ TRBarPlugin v1.3.1"
         grep -q 'BepInPlugin.*1\.3\.1' Plugins/TRBarrelsPlugin/TRBarrelsPlugin.cs && echo "✓ TRBarrelsPlugin v1.3.1"
         grep -q 'PLUGIN_VERSION = "1\.3\.0"' Plugins/TRStatsPlugin/TRStatsPlugin.cs && echo "✓ TRStatsPlugin v1.3.0"
-        grep -q 'BepInPlugin.*1\.0\.1' Plugins/TRAutoloaderPlugin/TRAutoloaderPlugin.cs && echo "✓ TRAutoloaderPlugin v1.0.1"
+        grep -q 'BepInPlugin.*1\.0\.2' Plugins/TRAutoloaderPlugin/TRAutoloaderPlugin.cs && echo "✓ TRAutoloaderPlugin v1.0.2"
 
     - name: Basic C# syntax validation
       run: |

@@ -13,7 +13,7 @@ using UnityEngine.SceneManagement;
 
 namespace TRTracker
 {
-    [BepInPlugin("com.lolaiur.trtracker", "Tavern Tracker", "1.3.1")]
+    [BepInPlugin("com.lolaiur.trtracker", "Tavern Tracker", "1.3.2")]
     public class TRTrackerPlugin : BaseUnityPlugin
     {
         public static TRTrackerPlugin Instance;
@@ -26,7 +26,7 @@ namespace TRTracker
              Directory.CreateDirectory(logDir);
              LogPath = Path.Combine(logDir, "tracker_debug.txt");
              try { if (File.Exists(LogPath)) File.Delete(LogPath); } catch { }
-             try { File.WriteAllText(LogPath, "TRTracker 1.3.1\n"); } catch { }
+             try { File.WriteAllText(LogPath, "TRTracker 1.3.2\n"); } catch { }
              
              // Cleanup old
              var old = FindObjectOfType<TrackerManager>();
@@ -98,11 +98,14 @@ namespace TRTracker
         }
 
         void Start() {
+            File.AppendAllText(TRTrackerPlugin.LogPath, "TrackerManager.Start (scene=" + gameObject.scene.name + ")\n");
             CreateUI();
+            File.AppendAllText(TRTrackerPlugin.LogPath, "Start done: UI_OBJ null? " + (UI_OBJ == null) + (UI_OBJ != null ? (" activeSelf=" + UI_OBJ.activeSelf) : "") + "\n");
             EnsureRefreshLoop();
         }
 
         void OnDestroy() {
+            File.AppendAllText(TRTrackerPlugin.LogPath, "TrackerManager.OnDestroy (scene=" + (gameObject != null ? gameObject.scene.name : "?") + ")\n");
             SceneManager.sceneLoaded -= OnSceneLoaded;
             if (_refreshLoop != null) StopCoroutine(_refreshLoop);
             _refreshLoop = null;
@@ -121,9 +124,14 @@ namespace TRTracker
         }
 
         private bool _showUI = true;
+        private bool _loggedUpdateOnce;
 
         void Update()
         {
+            if (!_loggedUpdateOnce) {
+                _loggedUpdateOnce = true;
+                File.AppendAllText(TRTrackerPlugin.LogPath, "TrackerManager.Update alive: UI_OBJ null? " + (UI_OBJ == null) + "\n");
+            }
             if (Input.GetKeyDown(KeyCode.F1)) {
                 if (UI_OBJ != null) {
                     _showUI = !_showUI;
@@ -159,7 +167,7 @@ namespace TRTracker
                 
                 Canvas c = UI_OBJ.AddComponent<Canvas>();
                 c.renderMode = RenderMode.ScreenSpaceOverlay; 
-                c.sortingOrder = 100; 
+                c.sortingOrder = 104;
                 
                 CanvasScaler cs = UI_OBJ.AddComponent<CanvasScaler>();
                 cs.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
@@ -210,7 +218,7 @@ namespace TRTracker
                 hTitle.transform.SetParent(header.transform, false);
                 Text ht = hTitle.AddComponent<Text>();
                 ht.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-                ht.text = "TAVERN TRACKER 1.3.1 (F1)";
+                ht.text = "TAVERN TRACKER 1.3.2 (F1)";
                 ht.alignment = TextAnchor.MiddleCenter;
                 ht.color = new Color(1f, 0.8f, 0.4f);
                 ht.fontSize = 14;
