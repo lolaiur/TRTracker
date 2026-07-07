@@ -285,7 +285,7 @@ namespace TRBarPlugin
                     hTitle.transform.SetParent(header.transform, false);
                     Text ht = hTitle.AddComponent<Text>();
                     if (uiFont != null) ht.font = uiFont;
-                    ht.text = "TR BAR 1.3.1 (F3)";
+                    ht.text = "TR BAR TRACKER 1.3.1 (F3)";
                     ht.alignment = TextAnchor.MiddleCenter;
                     ht.color = new Color(1f, 0.8f, 0.4f);
                     ht.fontSize = 14;

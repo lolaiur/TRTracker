@@ -11,7 +11,7 @@ using UnityEngine.EventSystems;
 
 namespace TRAutoloaderPlugin
 {
-    [BepInPlugin("com.lolaiur.trautoloader", "TR Autoloader", "1.0.5")]
+    [BepInPlugin("com.lolaiur.trautoloader", "TR Autoloader", "1.0.6")]
     [BepInProcess("TravellersRest.exe")]
     public class Plugin : BaseUnityPlugin
     {
@@ -33,8 +33,8 @@ namespace TRAutoloaderPlugin
             Directory.CreateDirectory(logDir);
             LogPath = Path.Combine(logDir, "autoload_debug.txt");
             try { File.Delete(LogPath); } catch { }
-            File.WriteAllText(LogPath, "TR Autoloader 1.0.5\n");
-            Logger.LogInfo("TR Autoloader 1.0.5");
+            File.WriteAllText(LogPath, "TR Autoloader 1.0.6\n");
+            Logger.LogInfo("TR Autoloader 1.0.6");
 
             ToggleUIKey = Config.Bind("UI", "ToggleKey", KeyCode.F5,
                 "Key to toggle the autoloader UI");
@@ -267,7 +267,7 @@ namespace TRAutoloaderPlugin
                 hTitle.transform.SetParent(header.transform, false);
                 Text ht = hTitle.AddComponent<Text>();
                 ht.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-                ht.text = "TR AUTOLOADER 1.0.5 (F5)";
+                ht.text = "TR AUTOLOADER 1.0.6 (F5)";
                 ht.alignment = TextAnchor.MiddleCenter;
                 ht.color = new Color(1f, 0.8f, 0.4f);
                 ht.fontSize = 14;
@@ -588,6 +588,7 @@ namespace TRAutoloaderPlugin
         private static float _nextDispenserScanTime;
         private static float _nextFoodIdleLogTime;
         private static float _nextDrinkIdleLogTime;
+        private static float _nextNoSourceLogTime;
         private static string _lastStatus = "Idle";
         private static float _lastStatusTime = -999f;
         private static ItemContainer _cachedFoodLoader;
@@ -941,6 +942,7 @@ namespace TRAutoloaderPlugin
             bool directSlotTransfer = UsesDirectDrinkSlotTransfer(target);
             Slot sourceSlot = FindBestDrinkSourceSlot(loader, target, currentId, wasActive, activeDrinkCounts, !directSlotTransfer);
             if (sourceSlot == null) {
+                LogDrinkNoSource(target, currentDrink, loader);
                 if (VerboseDrinkDebug) {
                     LogDrinkDebug(string.Format("No source drink found for {0} {1}. PreferredId={2}. Sources={3}.",
                         targetLabel,
@@ -1787,6 +1789,41 @@ namespace TRAutoloaderPlugin
             if (Time.unscaledTime < _nextDrinkIdleLogTime) return;
             _nextDrinkIdleLogTime = Time.unscaledTime + 30f;
             Log("[DrinkDebug] " + message);
+        }
+
+        // Always-on (throttled) diagnostic: when a drink target finds no source, dump the drink it
+        // wanted plus every loader slot and its item type, so it is clear whether the wanted drink is
+        // present and whether it is being excluded (for example wine held as kegs, not loose bottles).
+        private static void LogDrinkNoSource(Container target, ItemInstance wanted, ItemContainer loader)
+        {
+            if (Time.unscaledTime < _nextNoSourceLogTime) return;
+            _nextNoSourceLogTime = Time.unscaledTime + 30f;
+            Log(string.Format("No source for {0} {1}: wants {2} (id {3}). Loader: {4}",
+                target.GetType().Name,
+                FormatPosition(target.transform.position),
+                GetItemLabel(wanted),
+                GetItemId(wanted),
+                DescribeAllSources(loader)));
+        }
+
+        private static string DescribeAllSources(ItemContainer loader)
+        {
+            if (loader == null || loader.slots == null) return "none";
+
+            List<string> parts = new List<string>();
+            foreach (Slot slot in loader.slots)
+            {
+                if (slot == null || slot.itemInstance == null || slot.Stack <= 0) continue;
+                ItemInstance inst = slot.itemInstance;
+                parts.Add(string.Format("{0} x{1} ({2}, id {3}{4})",
+                    GetItemLabel(inst),
+                    slot.Stack,
+                    inst.GetType().Name,
+                    GetItemId(inst),
+                    IsLooseDrinkInstance(inst) ? ", ok" : ", EXCLUDED"));
+            }
+
+            return parts.Count == 0 ? "none" : string.Join(", ", parts.ToArray());
         }
 
         private static string DescribeFoodCounts(Dictionary<int, int> counts)

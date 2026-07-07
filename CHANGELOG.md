@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-07-07 (2)
+
+### Window title renames
+
+- TRTracker window: "TAVERN TRACKER" -> "TR TAVERN TRACKER"
+- TRBarrels window: "AGING STATS" -> "TR AGING TRACKER"
+- TRBar window: "TR BAR" -> "TR BAR TRACKER"
+- TRStats window: "TR STATS" -> "TR CHEATS"
+- TRAutoloader window title unchanged.
+
+### TRAutoloader 1.0.6
+
+- Added an always-on (throttled) diagnostic for drink loading. When a target finds no source, the log now names the drink it wanted and lists every loader slot with its item type, so it is clear whether the wanted drink is present and whether it is being excluded (for example wine held as kegs rather than loose bottles). Runs without verbose mode.
+
 ## 2026-07-07
 
 ### TRAutoloader 1.0.5

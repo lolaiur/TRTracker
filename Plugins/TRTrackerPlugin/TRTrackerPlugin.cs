@@ -259,7 +259,7 @@ namespace TRTracker
                 hTitle.transform.SetParent(header.transform, false);
                 Text ht = hTitle.AddComponent<Text>();
                 ht.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-                ht.text = "TAVERN TRACKER 1.3.4 (F1)";
+                ht.text = "TR TAVERN TRACKER 1.3.4 (F1)";
                 ht.alignment = TextAnchor.MiddleCenter;
                 ht.color = new Color(1f, 0.8f, 0.4f);
                 ht.fontSize = 14;

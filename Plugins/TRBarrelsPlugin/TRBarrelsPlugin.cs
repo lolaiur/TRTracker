@@ -105,7 +105,7 @@ namespace TRBarrels
                 hTitle.transform.SetParent(header.transform, false);
                 Text ht = hTitle.AddComponent<Text>();
                 ht.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-                ht.text = "AGING STATS 1.3.1 (F2)";
+                ht.text = "TR AGING TRACKER 1.3.1 (F2)";
                 ht.alignment = TextAnchor.MiddleCenter;
                 ht.color = new Color(1f, 0.8f, 0.4f);
                 ht.fontSize = 14;
