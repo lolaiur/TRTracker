@@ -11,7 +11,7 @@ using UnityEngine.EventSystems;
 
 namespace TRAutoloaderPlugin
 {
-    [BepInPlugin("com.lolaiur.trautoloader", "TR Autoloader", "1.0.0")]
+    [BepInPlugin("com.lolaiur.trautoloader", "TR Autoloader", "1.0.1")]
     [BepInProcess("TravellersRest.exe")]
     public class Plugin : BaseUnityPlugin
     {
@@ -19,6 +19,7 @@ namespace TRAutoloaderPlugin
         public static string LogPath;
 
         public static ConfigEntry<KeyCode> ToggleUIKey;
+        public static ConfigEntry<bool> AutoLoadEnabled;
         public static ConfigEntry<float> AutoloaderIntervalSeconds;
         public static ConfigEntry<string> FoodLoaderGuid;
         public static ConfigEntry<string> DrinkLoaderGuid;
@@ -31,11 +32,14 @@ namespace TRAutoloaderPlugin
             Directory.CreateDirectory(logDir);
             LogPath = Path.Combine(logDir, "autoload_debug.txt");
             try { File.Delete(LogPath); } catch { }
-            File.WriteAllText(LogPath, "TR Autoloader 1.0.0\n");
-            Logger.LogInfo("TR Autoloader 1.0.0");
+            File.WriteAllText(LogPath, "TR Autoloader 1.0.1\n");
+            Logger.LogInfo("TR Autoloader 1.0.1");
 
             ToggleUIKey = Config.Bind("UI", "ToggleKey", KeyCode.F5,
                 "Key to toggle the autoloader UI");
+
+            AutoLoadEnabled = Config.Bind("Autoloaders", "Enabled", true,
+                "Master switch for auto food/drink loading (use the panel toggle to change it at runtime)");
 
             AutoloaderIntervalSeconds = Config.Bind("Autoloaders", "IntervalSeconds", 6f,
                 new ConfigDescription("Seconds between autoloader refill checks",
@@ -109,10 +113,11 @@ namespace TRAutoloaderPlugin
         private RectTransform _panelRT;
         private GameObject _contentObj;
         private bool _showUI = true;
-        private float _expandedHeight = 300f;
+        private float _expandedHeight = 360f;
         private float _collapsedHeight = 35f;
 
         private Text _infoText;
+        private Toggle _enabledToggle;
         private Coroutine _loopCoroutine;
         private float _infoUpdateInterval = 0.5f;
 
@@ -176,7 +181,8 @@ namespace TRAutoloaderPlugin
         {
             if (_infoText == null) return;
             try {
-                string info = "Interval: " + Plugin.AutoloaderIntervalSeconds.Value.ToString("F1") + "s";
+                string info = "Loading: " + (Plugin.AutoLoadEnabled.Value ? "<color=#66ff66>ON</color>" : "<color=#ff6666>OFF</color>");
+                info += "\nInterval: " + Plugin.AutoloaderIntervalSeconds.Value.ToString("F1") + "s";
                 info += "\nFood Loader: " + BarAutoloaderService.GetFoodLoaderSummary();
                 info += "\nDrink Loader: " + BarAutoloaderService.GetDrinkLoaderSummary();
                 info += "\nLast: " + BarAutoloaderService.GetLastStatusSummary();
@@ -257,7 +263,7 @@ namespace TRAutoloaderPlugin
                 hTitle.transform.SetParent(header.transform, false);
                 Text ht = hTitle.AddComponent<Text>();
                 ht.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-                ht.text = "TR AUTOLOADER 1.0.0 (F5)";
+                ht.text = "TR AUTOLOADER 1.0.1 (F5)";
                 ht.alignment = TextAnchor.MiddleCenter;
                 ht.color = new Color(1f, 0.8f, 0.4f);
                 ht.fontSize = 14;
@@ -306,25 +312,28 @@ namespace TRAutoloaderPlugin
                 ch.Label = collapseLabel;
                 collapseButton.onClick.AddListener(ch.OnToggle);
 
-                // Content
+                // Content — anchored below the header so it never overlaps (and never blocks) the
+                // draggable title bar.
                 _contentObj = new GameObject("Content");
                 _contentObj.transform.SetParent(bg.transform, false);
                 RectTransform contentRT = _contentObj.AddComponent<RectTransform>();
-                contentRT.anchorMin = new Vector2(0, 1);
+                contentRT.anchorMin = new Vector2(0, 0);
                 contentRT.anchorMax = new Vector2(1, 1);
-                contentRT.pivot = new Vector2(0, 1);
-                contentRT.offsetMin = Vector2.zero;
-                contentRT.offsetMax = Vector2.zero;
+                contentRT.pivot = new Vector2(0.5f, 0.5f);
+                contentRT.offsetMin = new Vector2(5, 5);
+                contentRT.offsetMax = new Vector2(-5, -34);
 
-                ContentSizeFitter csf = _contentObj.AddComponent<ContentSizeFitter>();
-                csf.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
                 VerticalLayoutGroup vlg = _contentObj.AddComponent<VerticalLayoutGroup>();
+                vlg.childAlignment = TextAnchor.UpperCenter;
+                vlg.spacing = 4;
                 vlg.childControlHeight = true; vlg.childControlWidth = true;
                 vlg.childForceExpandHeight = false; vlg.childForceExpandWidth = true;
 
                 ch.ContentObj = _contentObj;
 
                 float yPos = 0;
+                yPos = CreateToggleRow(_contentObj.transform, "Auto-Loading Enabled", Plugin.AutoLoadEnabled.Value, yPos, out _enabledToggle);
+                _enabledToggle.onValueChanged.AddListener(delegate { Plugin.AutoLoadEnabled.Value = _enabledToggle.isOn; });
                 yPos = CreateSectionHeader(_contentObj.transform, "LOADERS", yPos);
                 yPos = CreateButton(_contentObj.transform, "Assign Nearby Food Loader", yPos, delegate { AssignFoodLoader(); });
                 yPos = CreateButton(_contentObj.transform, "Assign Nearby Drink Loader", yPos, delegate { AssignDrinkLoader(); });
@@ -402,6 +411,55 @@ namespace TRAutoloaderPlugin
             txtRT.sizeDelta = Vector2.zero;
 
             return yPos - 32;
+        }
+
+        float CreateToggleRow(Transform parent, string label, bool defaultVal, float yPos, out Toggle toggle)
+        {
+            GameObject rowObj = new GameObject(label + "_Row");
+            rowObj.transform.SetParent(parent, false);
+            LayoutElement le = rowObj.AddComponent<LayoutElement>();
+            le.minHeight = 26;
+
+            GameObject toggleBg = new GameObject("Background");
+            toggleBg.transform.SetParent(rowObj.transform, false);
+            Image bgImg = toggleBg.AddComponent<Image>();
+            bgImg.color = new Color(0.2f, 0.15f, 0.1f);
+            RectTransform bgRT = toggleBg.GetComponent<RectTransform>();
+            bgRT.anchorMin = new Vector2(0, 0.5f);
+            bgRT.anchorMax = new Vector2(0, 0.5f);
+            bgRT.pivot = new Vector2(0, 0.5f);
+            bgRT.anchoredPosition = new Vector2(8, 0);
+            bgRT.sizeDelta = new Vector2(22, 22);
+
+            GameObject checkmark = new GameObject("Checkmark");
+            checkmark.transform.SetParent(toggleBg.transform, false);
+            Image checkImg = checkmark.AddComponent<Image>();
+            checkImg.color = new Color(0.4f, 1f, 0.4f);
+            RectTransform checkRT = checkmark.GetComponent<RectTransform>();
+            checkRT.anchorMin = new Vector2(0.1f, 0.1f);
+            checkRT.anchorMax = new Vector2(0.9f, 0.9f);
+            checkRT.sizeDelta = Vector2.zero;
+
+            toggle = rowObj.AddComponent<Toggle>();
+            toggle.isOn = defaultVal;
+            toggle.targetGraphic = bgImg;
+            toggle.graphic = checkImg;
+
+            GameObject labelObj = new GameObject("Label");
+            labelObj.transform.SetParent(rowObj.transform, false);
+            Text labelText = labelObj.AddComponent<Text>();
+            labelText.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+            labelText.text = label;
+            labelText.color = new Color(0.9f, 0.85f, 0.7f);
+            labelText.fontSize = 12;
+            labelText.alignment = TextAnchor.MiddleLeft;
+            RectTransform labelRT = labelObj.GetComponent<RectTransform>();
+            labelRT.anchorMin = new Vector2(0, 0);
+            labelRT.anchorMax = new Vector2(1, 1);
+            labelRT.offsetMin = new Vector2(38, 0);
+            labelRT.offsetMax = new Vector2(-8, 0);
+
+            return yPos - 30;
         }
 
         void AssignFoodLoader()
@@ -623,6 +681,8 @@ namespace TRAutoloaderPlugin
         public static void TryRun()
         {
             try {
+                if (Plugin.AutoLoadEnabled != null && !Plugin.AutoLoadEnabled.Value) return;
+
                 float interval = Plugin.AutoloaderIntervalSeconds != null ? Mathf.Max(1f, Plugin.AutoloaderIntervalSeconds.Value) : 6f;
                 if (Time.unscaledTime < _nextRunTime) return;
                 _nextRunTime = Time.unscaledTime + interval;
@@ -688,7 +748,9 @@ namespace TRAutoloaderPlugin
         private static int RunFoodLoader()
         {
             ItemContainer loader = ResolveLoaderByKey(Plugin.FoodLoaderGuid.Value, ref _cachedFoodLoader);
-            if (!IsLoaderActive(loader)) return 0;
+            // The food loader stocks the shared bar menu, so its room does not matter — only that
+            // the container is live. (Drink loaders are still zone-checked via IsLoaderActive.)
+            if (loader == null || !loader.isActiveAndEnabled) return 0;
 
             BarMenuInventory barInventory = BarMenuInventory.GetInstance();
             if (barInventory == null || barInventory.slots == null) {
@@ -919,9 +981,9 @@ namespace TRAutoloaderPlugin
 
         private static bool UsesDirectDrinkSlotTransfer(Container target)
         {
-            DrinkDispenser dispenser = target as DrinkDispenser;
-            if (dispenser != null) return !dispenser.isBeerTap;
-
+            // DrinkDispensers (beer taps and kegs alike) accept drinks through the normal Container
+            // add path. Routing non-tap dispensers through it too fixes kegs not loading; only
+            // BanquetBarrel needs direct slot manipulation.
             return target is BanquetBarrel;
         }
 
