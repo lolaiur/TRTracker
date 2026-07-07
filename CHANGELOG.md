@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-07-07
+
+### TRAutoloader 1.0.5
+
+- Verbose drink logging is now a config toggle (Debug / VerboseDrinkLog, default off) instead of a hardcoded flag, so the trace can be turned back on for diagnosis without a rebuild. Default off removes the logging lag.
+- No behavior change to loading. Diagnosis showed the loader is working correctly: dispensers only fill when the loader holds the same drink they already contain, so they never mix drinks. A tap holding a drink that is not in the loader is skipped on purpose.
+
 ## 2026-07-06 (5)
 
 ### TRAutoloader 1.0.4

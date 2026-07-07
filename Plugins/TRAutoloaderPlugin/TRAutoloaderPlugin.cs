@@ -11,7 +11,7 @@ using UnityEngine.EventSystems;
 
 namespace TRAutoloaderPlugin
 {
-    [BepInPlugin("com.lolaiur.trautoloader", "TR Autoloader", "1.0.4")]
+    [BepInPlugin("com.lolaiur.trautoloader", "TR Autoloader", "1.0.5")]
     [BepInProcess("TravellersRest.exe")]
     public class Plugin : BaseUnityPlugin
     {
@@ -23,6 +23,7 @@ namespace TRAutoloaderPlugin
         public static ConfigEntry<float> AutoloaderIntervalSeconds;
         public static ConfigEntry<string> FoodLoaderGuid;
         public static ConfigEntry<string> DrinkLoaderGuid;
+        public static ConfigEntry<bool> VerboseDebug;
 
         void Awake()
         {
@@ -32,8 +33,8 @@ namespace TRAutoloaderPlugin
             Directory.CreateDirectory(logDir);
             LogPath = Path.Combine(logDir, "autoload_debug.txt");
             try { File.Delete(LogPath); } catch { }
-            File.WriteAllText(LogPath, "TR Autoloader 1.0.4\n");
-            Logger.LogInfo("TR Autoloader 1.0.4");
+            File.WriteAllText(LogPath, "TR Autoloader 1.0.5\n");
+            Logger.LogInfo("TR Autoloader 1.0.5");
 
             ToggleUIKey = Config.Bind("UI", "ToggleKey", KeyCode.F5,
                 "Key to toggle the autoloader UI");
@@ -50,6 +51,9 @@ namespace TRAutoloaderPlugin
 
             DrinkLoaderGuid = Config.Bind("Autoloaders", "DrinkLoaderGuid", string.Empty,
                 "Persistent placeable GUID for the assigned drink/keg loader container");
+
+            VerboseDebug = Config.Bind("Debug", "VerboseDrinkLog", false,
+                "Log per-target drink loading detail. Useful for diagnosis, adds some lag. Restart after changing.");
 
             BarAutoloaderService.NotifySceneLoaded(UnityEngine.SceneManagement.SceneManager.GetActiveScene().name);
 
@@ -263,7 +267,7 @@ namespace TRAutoloaderPlugin
                 hTitle.transform.SetParent(header.transform, false);
                 Text ht = hTitle.AddComponent<Text>();
                 ht.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-                ht.text = "TR AUTOLOADER 1.0.4 (F5)";
+                ht.text = "TR AUTOLOADER 1.0.5 (F5)";
                 ht.alignment = TextAnchor.MiddleCenter;
                 ht.color = new Color(1f, 0.8f, 0.4f);
                 ht.fontSize = 14;
@@ -578,7 +582,7 @@ namespace TRAutoloaderPlugin
         private const int MaxDrinkTargetsPerTick = 6;
         private const int MaxFoodMovesPerTick = 4;
         private const int MaxDrinkUnitsPerTick = 8;
-        private static readonly bool VerboseDrinkDebug = true;
+        private static bool VerboseDrinkDebug;
 
         private static float _nextRunTime;
         private static float _nextDispenserScanTime;
@@ -685,6 +689,8 @@ namespace TRAutoloaderPlugin
         {
             try {
                 if (Plugin.AutoLoadEnabled != null && !Plugin.AutoLoadEnabled.Value) return;
+
+                VerboseDrinkDebug = Plugin.VerboseDebug != null && Plugin.VerboseDebug.Value;
 
                 float interval = Plugin.AutoloaderIntervalSeconds != null ? Mathf.Max(1f, Plugin.AutoloaderIntervalSeconds.Value) : 6f;
                 if (Time.unscaledTime < _nextRunTime) return;
