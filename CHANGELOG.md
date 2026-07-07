@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-07-06 (5)
+
+### TRAutoloader 1.0.4
+
+- Restored drink loading. The 1.0.3 change to skip the item clone broke it, because the game rejects a still-slotted item in its fit check. The clone is back.
+- Added a food compatibility cache so food fit checks only clone once per item and target, then reuse the result. Lowered the per-tick drink cap (12 to 8) to spread moves across ticks.
+- Verbose drink logging is on for this build so the per-target trace lands in the log. Expect a little extra lag from the logging.
+
+### TRTracker 1.3.4
+
+- Debug build for the still-missing tracker window. The plugin now also creates the manager on scene loads (not only in Awake), and logs the manager lifecycle, the plugin Awake completion, the scene hook, and the first Update. This should show exactly when and whether the manager gets created.
+
 ## 2026-07-06 (4)
 
 ### TRTracker 1.3.3
