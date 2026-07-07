@@ -14,9 +14,9 @@
 
 ### TRAutoloader 1.0.1
 
-- Fixed the loader panel overlapping its own title bar, which made it look broken and blocked dragging — content is now anchored below the header so the header is always grabbable.
+- Fixed the loader panel overlapping its own title bar, which made it look broken and blocked dragging. Content is now anchored below the header so the header is always grabbable.
 - Added an "Auto-Loading Enabled" master toggle (top of the panel, also in config as `Autoloaders/Enabled`) so loading can be paused without clearing loader assignments; state is shown in the status line.
-- Fixed kegs (non-beer-tap drink dispensers) not loading — they now use the same add-path as beer taps instead of the failing direct-slot path.
+- Fixed kegs (non-beer-tap drink dispensers) not loading. They now use the same add-path as beer taps instead of the failing direct-slot path.
 - Relaxed the food loader so it stocks the bar menu from any room (it was previously rejected unless placed in the dining room).
 
 ## 2026-07-06
@@ -32,7 +32,7 @@
 
 ### TRStats 1.3.0
 
-- Removed the autoloader (now shipped as TRAutoloader). The autoloader config keys (`FoodLoaderGuid`, `DrinkLoaderGuid`, `IntervalSeconds`) moved from `com.trstats.mod.cfg` to `com.lolaiur.trautoloader.cfg` — reassign your loaders once after updating.
+- Removed the autoloader (now shipped as TRAutoloader). The autoloader config keys (`FoodLoaderGuid`, `DrinkLoaderGuid`, `IntervalSeconds`) moved from `com.trstats.mod.cfg` to `com.lolaiur.trautoloader.cfg`. Reassign your loaders once after updating.
 
 ## 2026-04-10
 
