@@ -11,7 +11,7 @@ using UnityEngine.EventSystems;
 
 namespace TRAutoloaderPlugin
 {
-    [BepInPlugin("com.lolaiur.trautoloader", "TR Autoloader", "1.0.6")]
+    [BepInPlugin("com.lolaiur.trautoloader", "TR Autoloader", "1.0.7")]
     [BepInProcess("TravellersRest.exe")]
     public class Plugin : BaseUnityPlugin
     {
@@ -33,8 +33,8 @@ namespace TRAutoloaderPlugin
             Directory.CreateDirectory(logDir);
             LogPath = Path.Combine(logDir, "autoload_debug.txt");
             try { File.Delete(LogPath); } catch { }
-            File.WriteAllText(LogPath, "TR Autoloader 1.0.6\n");
-            Logger.LogInfo("TR Autoloader 1.0.6");
+            File.WriteAllText(LogPath, "TR Autoloader 1.0.7\n");
+            Logger.LogInfo("TR Autoloader 1.0.7");
 
             ToggleUIKey = Config.Bind("UI", "ToggleKey", KeyCode.F5,
                 "Key to toggle the autoloader UI");
@@ -267,7 +267,7 @@ namespace TRAutoloaderPlugin
                 hTitle.transform.SetParent(header.transform, false);
                 Text ht = hTitle.AddComponent<Text>();
                 ht.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-                ht.text = "TR AUTOLOADER 1.0.6 (F5)";
+                ht.text = "TR AUTOLOADER 1.0.7 (F5)";
                 ht.alignment = TextAnchor.MiddleCenter;
                 ht.color = new Color(1f, 0.8f, 0.4f);
                 ht.fontSize = 14;
@@ -1536,11 +1536,30 @@ namespace TRAutoloaderPlugin
                 ? "<color=#66ff66>ready</color>"
                 : "<color=#ffcc66>inactive</color>";
 
-            return string.Format("{0} <size=10>({1}, {2:0.0}/{3:0.0})</size>",
+            return string.Format("{0} <size=10>({1}, {2:0.0}/{3:0.0})</size>\n<size=9>Drinks: {4}</size>",
                 state,
                 zoneName,
                 container.transform.position.x,
-                container.transform.position.y);
+                container.transform.position.y,
+                DescribeSourceTypes(container));
+        }
+
+        // Distinct drink names in a loader (no counts, no duplicates), so the panel can show at a
+        // glance which drinks the assigned loader actually holds.
+        private static string DescribeSourceTypes(ItemContainer loader)
+        {
+            if (loader == null || loader.slots == null) return "empty";
+
+            HashSet<string> seen = new HashSet<string>();
+            List<string> ordered = new List<string>();
+            foreach (Slot slot in loader.slots)
+            {
+                if (slot == null || slot.itemInstance == null || slot.Stack <= 0) continue;
+                string label = GetItemLabel(slot.itemInstance);
+                if (seen.Add(label)) ordered.Add(label);
+            }
+
+            return ordered.Count == 0 ? "empty" : string.Join(", ", ordered.ToArray());
         }
 
         private static string DescribeContainer(ItemContainer container)

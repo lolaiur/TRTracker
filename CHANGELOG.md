@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-07-07 (3)
+
+### TRAutoloader 1.0.7
+
+- The F5 panel now lists the distinct drinks held by each assigned loader (food and drink), so you can see exactly which drinks the loader you assigned actually contains. This makes it obvious when a dispenser is not filling because the drink it holds is not in the assigned loader (for example, a cider dispenser when the loader holds only wine and beer).
+
 ## 2026-07-07 (2)
 
 ### Window title renames
