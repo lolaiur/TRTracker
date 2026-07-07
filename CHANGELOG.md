@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-07-06 (4)
+
+### TRTracker 1.3.3
+
+- Fixed the tracker window never appearing. Diagnostic logging showed the manager GameObject was destroyed during the bootstrap scene change before it ever started (OnDestroy fired, Start did not). The plugin now recreates the manager from its own Update loop once a real scene is active, which reliably survives.
+
+### TRAutoloader 1.0.3
+
+- Reduced the per-tick lag. Container.CanFitItems is a read-only check, so the loader no longer clones items just to test whether they fit. That clone was the main cost during source selection on every tick.
+- Halved the per-tick drink cap (24 to 12) so item moves spread out over more ticks instead of spiking one frame.
+
 ## 2026-07-06 (3)
 
 ### TRAutoloader 1.0.2

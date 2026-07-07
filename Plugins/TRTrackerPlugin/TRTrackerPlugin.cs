@@ -13,7 +13,7 @@ using UnityEngine.SceneManagement;
 
 namespace TRTracker
 {
-    [BepInPlugin("com.lolaiur.trtracker", "Tavern Tracker", "1.3.2")]
+    [BepInPlugin("com.lolaiur.trtracker", "Tavern Tracker", "1.3.3")]
     public class TRTrackerPlugin : BaseUnityPlugin
     {
         public static TRTrackerPlugin Instance;
@@ -26,7 +26,7 @@ namespace TRTracker
              Directory.CreateDirectory(logDir);
              LogPath = Path.Combine(logDir, "tracker_debug.txt");
              try { if (File.Exists(LogPath)) File.Delete(LogPath); } catch { }
-             try { File.WriteAllText(LogPath, "TRTracker 1.3.2\n"); } catch { }
+             try { File.WriteAllText(LogPath, "TRTracker 1.3.3\n"); } catch { }
              
              // Cleanup old
              var old = FindObjectOfType<TrackerManager>();
@@ -41,6 +41,22 @@ namespace TRTracker
              DontDestroyOnLoad(loadMsg.gameObject);
              
              try { new Harmony("com.lolaiur.trtracker").PatchAll(); } catch {}
+        }
+
+        private float _nextManagerCheck;
+        void Update()
+        {
+            // The manager created in Awake can be torn down during the bootstrap scene change before
+            // it ever starts (its OnDestroy fires, Start never does). The plugin itself survives, so
+            // recreate the manager here once a real scene is active. Checked once per second.
+            if (Time.time < _nextManagerCheck) return;
+            _nextManagerCheck = Time.time + 1f;
+            if (FindObjectOfType<TrackerManager>() != null) return;
+            UnityEngine.SceneManagement.Scene scene = SceneManager.GetActiveScene();
+            if (!scene.IsValid() || string.IsNullOrEmpty(scene.name)) return;
+            GameObject go = new GameObject("TRTracker_Manager");
+            DontDestroyOnLoad(go);
+            go.AddComponent<TrackerManager>();
         }
     }
 
@@ -218,7 +234,7 @@ namespace TRTracker
                 hTitle.transform.SetParent(header.transform, false);
                 Text ht = hTitle.AddComponent<Text>();
                 ht.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-                ht.text = "TAVERN TRACKER 1.3.2 (F1)";
+                ht.text = "TAVERN TRACKER 1.3.3 (F1)";
                 ht.alignment = TextAnchor.MiddleCenter;
                 ht.color = new Color(1f, 0.8f, 0.4f);
                 ht.fontSize = 14;

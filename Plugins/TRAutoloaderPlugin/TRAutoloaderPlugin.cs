@@ -11,7 +11,7 @@ using UnityEngine.EventSystems;
 
 namespace TRAutoloaderPlugin
 {
-    [BepInPlugin("com.lolaiur.trautoloader", "TR Autoloader", "1.0.2")]
+    [BepInPlugin("com.lolaiur.trautoloader", "TR Autoloader", "1.0.3")]
     [BepInProcess("TravellersRest.exe")]
     public class Plugin : BaseUnityPlugin
     {
@@ -32,8 +32,8 @@ namespace TRAutoloaderPlugin
             Directory.CreateDirectory(logDir);
             LogPath = Path.Combine(logDir, "autoload_debug.txt");
             try { File.Delete(LogPath); } catch { }
-            File.WriteAllText(LogPath, "TR Autoloader 1.0.2\n");
-            Logger.LogInfo("TR Autoloader 1.0.2");
+            File.WriteAllText(LogPath, "TR Autoloader 1.0.3\n");
+            Logger.LogInfo("TR Autoloader 1.0.3");
 
             ToggleUIKey = Config.Bind("UI", "ToggleKey", KeyCode.F5,
                 "Key to toggle the autoloader UI");
@@ -263,7 +263,7 @@ namespace TRAutoloaderPlugin
                 hTitle.transform.SetParent(header.transform, false);
                 Text ht = hTitle.AddComponent<Text>();
                 ht.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-                ht.text = "TR AUTOLOADER 1.0.2 (F5)";
+                ht.text = "TR AUTOLOADER 1.0.3 (F5)";
                 ht.alignment = TextAnchor.MiddleCenter;
                 ht.color = new Color(1f, 0.8f, 0.4f);
                 ht.fontSize = 14;
@@ -577,7 +577,7 @@ namespace TRAutoloaderPlugin
         private const float DrinkRejectCooldownSeconds = 120f;
         private const int MaxDrinkTargetsPerTick = 6;
         private const int MaxFoodMovesPerTick = 4;
-        private const int MaxDrinkUnitsPerTick = 24;
+        private const int MaxDrinkUnitsPerTick = 12;
         private static readonly bool VerboseDrinkDebug = false;
 
         private static float _nextRunTime;
@@ -1719,14 +1719,13 @@ namespace TRAutoloaderPlugin
             if (_drinkRejectCooldowns.TryGetValue(key, out retryTime) && Time.unscaledTime < retryTime) return false;
 
             // Compatibility between an item type and a target type is stable for the object's lifetime,
-            // so a positive result is cached to skip the reflection clone on subsequent probes.
+            // so a positive result is cached to skip re-checking on subsequent probes.
             if (_drinkCompatibilityCache.Contains(key)) return true;
 
-            ItemInstance clone = CloneItemInstance(instance);
-            if (clone == null) return false;
-
             try {
-                bool result = target.CanFitItems(clone, 1);
+                // CanFitItems is a read-only check, so pass the source instance directly instead of
+                // cloning it. The clone was the main per-tick cost during source selection.
+                bool result = target.CanFitItems(instance, 1);
                 if (result) _drinkCompatibilityCache.Add(key);
                 else _drinkRejectCooldowns[key] = Time.unscaledTime + DrinkRejectCooldownSeconds;
                 return result;
@@ -1741,11 +1740,8 @@ namespace TRAutoloaderPlugin
         {
             if (target == null || instance == null) return false;
 
-            ItemInstance clone = CloneItemInstance(instance);
-            if (clone == null) return false;
-
             try {
-                return target.CanFitItems(clone, 1);
+                return target.CanFitItems(instance, 1);
             }
             catch {
                 return false;
