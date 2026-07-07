@@ -11,7 +11,7 @@ using UnityEngine.EventSystems;
 
 namespace TRAutoloaderPlugin
 {
-    [BepInPlugin("com.lolaiur.trautoloader", "TR Autoloader", "1.0.7")]
+    [BepInPlugin("com.lolaiur.trautoloader", "TR Autoloader", "1.0.8")]
     [BepInProcess("TravellersRest.exe")]
     public class Plugin : BaseUnityPlugin
     {
@@ -33,8 +33,8 @@ namespace TRAutoloaderPlugin
             Directory.CreateDirectory(logDir);
             LogPath = Path.Combine(logDir, "autoload_debug.txt");
             try { File.Delete(LogPath); } catch { }
-            File.WriteAllText(LogPath, "TR Autoloader 1.0.7\n");
-            Logger.LogInfo("TR Autoloader 1.0.7");
+            File.WriteAllText(LogPath, "TR Autoloader 1.0.8\n");
+            Logger.LogInfo("TR Autoloader 1.0.8");
 
             ToggleUIKey = Config.Bind("UI", "ToggleKey", KeyCode.F5,
                 "Key to toggle the autoloader UI");
@@ -267,7 +267,7 @@ namespace TRAutoloaderPlugin
                 hTitle.transform.SetParent(header.transform, false);
                 Text ht = hTitle.AddComponent<Text>();
                 ht.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-                ht.text = "TR AUTOLOADER 1.0.7 (F5)";
+                ht.text = "TR AUTOLOADER 1.0.8 (F5)";
                 ht.alignment = TextAnchor.MiddleCenter;
                 ht.color = new Color(1f, 0.8f, 0.4f);
                 ht.fontSize = 14;
@@ -691,7 +691,7 @@ namespace TRAutoloaderPlugin
             try {
                 if (Plugin.AutoLoadEnabled != null && !Plugin.AutoLoadEnabled.Value) return;
 
-                VerboseDrinkDebug = Plugin.VerboseDebug != null && Plugin.VerboseDebug.Value;
+                VerboseDrinkDebug = true; // forced on for 1.0.8 diagnosis
 
                 float interval = Plugin.AutoloaderIntervalSeconds != null ? Mathf.Max(1f, Plugin.AutoloaderIntervalSeconds.Value) : 6f;
                 if (Time.unscaledTime < _nextRunTime) return;
@@ -928,7 +928,11 @@ namespace TRAutoloaderPlugin
             int currentAmount = GetDrinkAmount(drinkSlot);
             int currentMax = GetDrinkTargetMax(target, currentDrink);
             bool wasActive = currentDrink != null && currentAmount > 0;
-            bool shouldTopOff = currentDrink == null || currentAmount <= 0 || (currentMax > 0 && currentAmount < currentMax);
+            // Only top off a dispenser that already holds a drink. We never pour a different drink
+            // into a dispenser, and we no longer guess a drink for an empty one (that was filling
+            // empty taps with whatever else was active, e.g. beer into a wine tap). Leave a drink in
+            // a dispenser and the autoloader keeps it stocked from the loader.
+            bool shouldTopOff = currentDrink != null && (currentAmount <= 0 || (currentMax > 0 && currentAmount < currentMax));
             if (!shouldTopOff) {
                 if (VerboseDrinkDebug) {
                     LogDrinkDebug(string.Format("{0} {1} already full with {2}.",

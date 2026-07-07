@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-07-07 (4)
+
+### TRAutoloader 1.0.8
+
+- Fixed drinks not transferring even when the loader had them. The autoloader was filling empty dispensers with whatever drink was already active elsewhere (for example, beer into an empty wine tap), so it would never put the intended drink back. It now only tops off dispensers that already hold a drink: leave a drink in a dispenser and the autoloader keeps it stocked from the loader; empty dispensers are left alone.
+- Verbose drink logging is forced on for this build so the per-target trace is captured for confirmation.
+
 ## 2026-07-07 (3)
 
 ### TRAutoloader 1.0.7
