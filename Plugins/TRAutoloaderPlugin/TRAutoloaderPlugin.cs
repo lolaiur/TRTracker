@@ -11,7 +11,7 @@ using UnityEngine.EventSystems;
 
 namespace TRAutoloaderPlugin
 {
-    [BepInPlugin("com.lolaiur.trautoloader", "TR Autoloader", "1.1.2")]
+    [BepInPlugin("com.lolaiur.trautoloader", "TR Autoloader", "1.1.3")]
     [BepInProcess("TravellersRest.exe")]
     public class Plugin : BaseUnityPlugin
     {
@@ -33,8 +33,8 @@ namespace TRAutoloaderPlugin
             Directory.CreateDirectory(logDir);
             LogPath = Path.Combine(logDir, "autoload_debug.txt");
             // Append (do not wipe) so test data survives game restarts for diagnosis.
-            File.AppendAllText(LogPath, "\n=== session TR Autoloader 1.1.2 ===\n");
-            Logger.LogInfo("TR Autoloader 1.1.2");
+            File.AppendAllText(LogPath, "\n=== session TR Autoloader 1.1.3 ===\n");
+            Logger.LogInfo("TR Autoloader 1.1.3");
 
             ToggleUIKey = Config.Bind("UI", "ToggleKey", KeyCode.F5,
                 "Key to toggle the autoloader UI");
@@ -267,7 +267,7 @@ namespace TRAutoloaderPlugin
                 hTitle.transform.SetParent(header.transform, false);
                 Text ht = hTitle.AddComponent<Text>();
                 ht.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-                ht.text = "TR AUTOLOADER 1.1.2 (F5)";
+                ht.text = "TR AUTOLOADER 1.1.3 (F5)";
                 ht.alignment = TextAnchor.MiddleCenter;
                 ht.color = new Color(1f, 0.8f, 0.4f);
                 ht.fontSize = 14;
@@ -869,7 +869,15 @@ namespace TRAutoloaderPlugin
                     if (unitsMoved >= MaxDrinkUnitsPerTick) break;
                     if (targetsAttempted >= MaxDrinkTargetsPerTick) break;
                     if (!IsDrinkTargetUsable(dispenser)) {
-                        if (VerboseDrinkDebug) LogDrinkDebug("Skipping dispenser outside dining room at " + FormatPosition(dispenser.transform.position) + ".");
+                        if (VerboseDrinkDebug) {
+                            TavernZone sz = GetTavernZone(dispenser.transform.position);
+                            Slot sds = GetDispenserSlot(dispenser);
+                            LogDrinkDebug(string.Format("Skipping dispenser at {0}: isBeerTap={1} zone={2} targetSlot={3}",
+                                FormatPosition(dispenser.transform.position),
+                                dispenser.isBeerTap,
+                                sz != null ? sz.zoneType.ToString() : "none",
+                                sds == null ? "null" : DescribeSlotStack(sds)));
+                        }
                         continue;
                     }
 
@@ -1406,8 +1414,10 @@ namespace TRAutoloaderPlugin
         {
             if (target == null || !target.isActiveAndEnabled || target.slots == null || target.slots.Length == 0) return false;
 
-            TavernZone zone = GetTavernZone(target.transform.position);
-            return zone != null && zone.zoneType == ZoneType.DiningRoom;
+            // Accept any dispenser that is inside a tavern zone, not only the dining room. Wine kegs
+            // and other drink dispensers are often placed in the bar area, which can be zoned
+            // separately from the dining room, and they still need filling.
+            return GetTavernZone(target.transform.position) != null;
         }
 
         // Cached TavernZonesManager singleton — resolving it via reflection on every zone check was the

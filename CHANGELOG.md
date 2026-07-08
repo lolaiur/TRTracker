@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-07-08 (3)
+
+### TRAutoloader 1.1.3
+
+- Fixed wine kegs (and other drink dispensers) not filling when placed outside the dining room zone. The loader only filled dispensers in the dining room, but kegs are often placed in the bar area, which is zoned separately. It now fills any dispenser that is inside a tavern zone.
+- Enriched the verbose skip log so a skipped dispenser reports its type (tap or keg), its zone, and the drink it holds.
+
 ## 2026-07-08 (2)
 
 ### TRAutoloader 1.1.2
