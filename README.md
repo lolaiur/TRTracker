@@ -9,7 +9,8 @@ A set of BepInEx plugins for Traveler's Rest: live tavern stats, barrel and bar 
 ## Supported game version: 0.7.5.3
 
 
-<img width="1418" height="643" alt="image" src="https://github.com/user-attachments/assets/10f860d0-ab79-4a52-a585-ec54647c22ab" />
+
+<img width="2557" height="972" alt="image" src="https://github.com/user-attachments/assets/3ab57655-5fba-4b39-a70c-d407a53b087f" />
 
 
 Five DLLs are included. Each one works on its own, or you can install all of them. See [CHANGELOG.md](CHANGELOG.md) for per-mod version history.
