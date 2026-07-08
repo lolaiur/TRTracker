@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-07-08
+
+### TRAutoloader 1.1.1
+
+- Fixed drinks not transferring into dispensers. The loader was using the game's AddItemInstance path for beer taps, but the dispenser's item filters reject cloned items there (it returns null even when the slot has room), so nothing moved. All dispensers (taps, kegs, and bar barrels) now use direct slot transfer, topping off by incrementing the existing drink's stack, which is how the game itself fills dispensers.
+
 ## 2026-07-07 (6)
 
 ### TRAutoloader 1.1.0

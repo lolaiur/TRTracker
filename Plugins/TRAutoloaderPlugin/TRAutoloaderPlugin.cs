@@ -11,7 +11,7 @@ using UnityEngine.EventSystems;
 
 namespace TRAutoloaderPlugin
 {
-    [BepInPlugin("com.lolaiur.trautoloader", "TR Autoloader", "1.1.0")]
+    [BepInPlugin("com.lolaiur.trautoloader", "TR Autoloader", "1.1.1")]
     [BepInProcess("TravellersRest.exe")]
     public class Plugin : BaseUnityPlugin
     {
@@ -33,8 +33,8 @@ namespace TRAutoloaderPlugin
             Directory.CreateDirectory(logDir);
             LogPath = Path.Combine(logDir, "autoload_debug.txt");
             try { File.Delete(LogPath); } catch { }
-            File.WriteAllText(LogPath, "TR Autoloader 1.1.0\n");
-            Logger.LogInfo("TR Autoloader 1.1.0");
+            File.WriteAllText(LogPath, "TR Autoloader 1.1.1\n");
+            Logger.LogInfo("TR Autoloader 1.1.1");
 
             ToggleUIKey = Config.Bind("UI", "ToggleKey", KeyCode.F5,
                 "Key to toggle the autoloader UI");
@@ -267,7 +267,7 @@ namespace TRAutoloaderPlugin
                 hTitle.transform.SetParent(header.transform, false);
                 Text ht = hTitle.AddComponent<Text>();
                 ht.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-                ht.text = "TR AUTOLOADER 1.1.0 (F5)";
+                ht.text = "TR AUTOLOADER 1.1.1 (F5)";
                 ht.alignment = TextAnchor.MiddleCenter;
                 ht.color = new Color(1f, 0.8f, 0.4f);
                 ht.fontSize = 14;
@@ -1006,10 +1006,12 @@ namespace TRAutoloaderPlugin
 
         private static bool UsesDirectDrinkSlotTransfer(Container target)
         {
-            DrinkDispenser dispenser = target as DrinkDispenser;
-            if (dispenser != null) return !dispenser.isBeerTap;
-
-            return target is BanquetBarrel;
+            // All drink dispensers (taps and kegs) and bar barrels use direct slot transfer. The
+            // normal AddItemInstance path is rejected by the dispenser's item filters for cloned
+            // items (it returns null even when CanFitItems says there is room), so topping off by
+            // incrementing the existing slot stack is the reliable path and matches how the game
+            // itself fills dispensers.
+            return target is DrinkDispenser || target is BanquetBarrel;
         }
 
         // Beer taps pour from slots[0]; service barrels (kegs) keep their drink in slots[1]. The game
