@@ -11,7 +11,7 @@ using UnityEngine.EventSystems;
 
 namespace TRAutoloaderPlugin
 {
-    [BepInPlugin("com.lolaiur.trautoloader", "TR Autoloader", "1.0.8")]
+    [BepInPlugin("com.lolaiur.trautoloader", "TR Autoloader", "1.0.9")]
     [BepInProcess("TravellersRest.exe")]
     public class Plugin : BaseUnityPlugin
     {
@@ -33,8 +33,8 @@ namespace TRAutoloaderPlugin
             Directory.CreateDirectory(logDir);
             LogPath = Path.Combine(logDir, "autoload_debug.txt");
             try { File.Delete(LogPath); } catch { }
-            File.WriteAllText(LogPath, "TR Autoloader 1.0.8\n");
-            Logger.LogInfo("TR Autoloader 1.0.8");
+            File.WriteAllText(LogPath, "TR Autoloader 1.0.9\n");
+            Logger.LogInfo("TR Autoloader 1.0.9");
 
             ToggleUIKey = Config.Bind("UI", "ToggleKey", KeyCode.F5,
                 "Key to toggle the autoloader UI");
@@ -267,7 +267,7 @@ namespace TRAutoloaderPlugin
                 hTitle.transform.SetParent(header.transform, false);
                 Text ht = hTitle.AddComponent<Text>();
                 ht.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-                ht.text = "TR AUTOLOADER 1.0.8 (F5)";
+                ht.text = "TR AUTOLOADER 1.0.9 (F5)";
                 ht.alignment = TextAnchor.MiddleCenter;
                 ht.color = new Color(1f, 0.8f, 0.4f);
                 ht.fontSize = 14;
@@ -935,10 +935,12 @@ namespace TRAutoloaderPlugin
             bool shouldTopOff = currentDrink != null && (currentAmount <= 0 || (currentMax > 0 && currentAmount < currentMax));
             if (!shouldTopOff) {
                 if (VerboseDrinkDebug) {
-                    LogDrinkDebug(string.Format("{0} {1} already full with {2}.",
+                    LogDrinkDebug(string.Format("{0} {1} already full with {2} ({3}/{4}).",
                         targetLabel,
                         FormatPosition(target.transform.position),
-                        DescribeSlotStack(drinkSlot)));
+                        DescribeSlotStack(drinkSlot),
+                        currentAmount,
+                        currentMax));
                 }
                 return 0;
             }
@@ -1711,9 +1713,11 @@ namespace TRAutoloaderPlugin
         {
             if (target == null || instance == null) return 0;
 
-            int observedCap = GetObservedDrinkCap(target, instance);
-            if (observedCap > 0) return observedCap;
-
+            // Deliberately not using the learned "observed cap" here. That cache locked in a wrong
+            // value (e.g. 10) after a single failed add and then treated the dispenser as permanently
+            // full, so a partially-filled tap (like cider at 10 of 20) never got topped off. The
+            // compatibility cooldown already prevents re-trying a genuinely full dispenser, so we
+            // rely on the slot/item max values instead.
             int slotMax = 0;
             try {
                 Slot slot = target.slots != null && target.slots.Length > 0 ? target.slots[0] : null;

@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-07-07 (5)
+
+### TRAutoloader 1.0.9
+
+- Fixed partially-filled dispensers never topping off. The autoloader kept a "learned capacity" per dispenser that locked in after a single failed add (for example, cider stuck at 10), then treated the dispenser as permanently full. That learned cap is no longer used; the loader now relies on the slot and item max values, and the compatibility cooldown already prevents re-trying genuinely full dispensers.
+- Verbose log now prints the current count and max when a dispenser is reported full, to confirm the cap.
+
 ## 2026-07-07 (4)
 
 ### TRAutoloader 1.0.8
