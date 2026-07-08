@@ -11,7 +11,7 @@ using UnityEngine.EventSystems;
 
 namespace TRAutoloaderPlugin
 {
-    [BepInPlugin("com.lolaiur.trautoloader", "TR Autoloader", "1.0.9")]
+    [BepInPlugin("com.lolaiur.trautoloader", "TR Autoloader", "1.1.0")]
     [BepInProcess("TravellersRest.exe")]
     public class Plugin : BaseUnityPlugin
     {
@@ -33,8 +33,8 @@ namespace TRAutoloaderPlugin
             Directory.CreateDirectory(logDir);
             LogPath = Path.Combine(logDir, "autoload_debug.txt");
             try { File.Delete(LogPath); } catch { }
-            File.WriteAllText(LogPath, "TR Autoloader 1.0.9\n");
-            Logger.LogInfo("TR Autoloader 1.0.9");
+            File.WriteAllText(LogPath, "TR Autoloader 1.1.0\n");
+            Logger.LogInfo("TR Autoloader 1.1.0");
 
             ToggleUIKey = Config.Bind("UI", "ToggleKey", KeyCode.F5,
                 "Key to toggle the autoloader UI");
@@ -267,7 +267,7 @@ namespace TRAutoloaderPlugin
                 hTitle.transform.SetParent(header.transform, false);
                 Text ht = hTitle.AddComponent<Text>();
                 ht.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-                ht.text = "TR AUTOLOADER 1.0.9 (F5)";
+                ht.text = "TR AUTOLOADER 1.1.0 (F5)";
                 ht.alignment = TextAnchor.MiddleCenter;
                 ht.color = new Color(1f, 0.8f, 0.4f);
                 ht.fontSize = 14;
@@ -921,6 +921,14 @@ namespace TRAutoloaderPlugin
 
         private static int FillDrinkTarget(ItemContainer loader, Container target, Slot drinkSlot, Dictionary<int, int> activeDrinkCounts, int maxUnits, string targetLabel)
         {
+            if (VerboseDrinkDebug)
+            {
+                LogDrinkDebug(string.Format("FillDrinkTarget {0} {1} drinkSlot={2} maxUnits={3}",
+                    targetLabel,
+                    FormatPosition(target != null ? target.transform.position : Vector3.zero),
+                    drinkSlot == null ? "null" : DescribeSlotStack(drinkSlot),
+                    maxUnits));
+            }
             if (loader == null || target == null || drinkSlot == null || maxUnits <= 0) return 0;
 
             ItemInstance currentDrink = drinkSlot.itemInstance;
@@ -1738,7 +1746,10 @@ namespace TRAutoloaderPlugin
             }
             catch { }
 
-            if (slotMax > 1 && itemMax > 0) return Mathf.Min(slotMax, itemMax);
+            // Prefer the container's own max (Container.GetMaxStack returns the dispenser's maxStack,
+            // e.g. 30 for bar dispensers). The per-slot maxStack can be smaller and was wrongly
+            // capping some drinks (cider at 10). AddItemInstance and CanFitItems use the container
+            // maxStack, so this matches what the dispenser actually accepts.
             if (itemMax > 0) return itemMax;
             if (slotMax > 0) return slotMax;
             if (instanceMax > 0) return instanceMax;

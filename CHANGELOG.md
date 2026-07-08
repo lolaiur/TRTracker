@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-07-07 (6)
+
+### TRAutoloader 1.1.0
+
+- Fixed the drink cap. The loader was capping some dispensers at the per-slot maxStack (for example cider at 10) instead of the dispenser's own maxStack (30, what every bar dispenser actually holds and what AddItemInstance accepts). Partially filled dispensers now top off to the full 30.
+- Added a verbose entry log for each drink target so silent skips (for example a dispenser with a null slot) are visible in the trace.
+
 ## 2026-07-07 (5)
 
 ### TRAutoloader 1.0.9
