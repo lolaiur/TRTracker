@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-07-08 (4)
+
+### TRAutoloader 1.1.4
+
+- Fixed wine kegs still not filling. They sit in unzoned bar space (zone=none), so even the relaxed "any tavern zone" check skipped them. The zone requirement is dropped entirely: any active drink dispenser is now eligible, and the existing "only top off dispensers that already hold a drink" rule still prevents unwanted fills.
+
 ## 2026-07-08 (3)
 
 ### TRAutoloader 1.1.3

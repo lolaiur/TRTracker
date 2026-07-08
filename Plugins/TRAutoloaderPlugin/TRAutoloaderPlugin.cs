@@ -11,7 +11,7 @@ using UnityEngine.EventSystems;
 
 namespace TRAutoloaderPlugin
 {
-    [BepInPlugin("com.lolaiur.trautoloader", "TR Autoloader", "1.1.3")]
+    [BepInPlugin("com.lolaiur.trautoloader", "TR Autoloader", "1.1.4")]
     [BepInProcess("TravellersRest.exe")]
     public class Plugin : BaseUnityPlugin
     {
@@ -33,8 +33,8 @@ namespace TRAutoloaderPlugin
             Directory.CreateDirectory(logDir);
             LogPath = Path.Combine(logDir, "autoload_debug.txt");
             // Append (do not wipe) so test data survives game restarts for diagnosis.
-            File.AppendAllText(LogPath, "\n=== session TR Autoloader 1.1.3 ===\n");
-            Logger.LogInfo("TR Autoloader 1.1.3");
+            File.AppendAllText(LogPath, "\n=== session TR Autoloader 1.1.4 ===\n");
+            Logger.LogInfo("TR Autoloader 1.1.4");
 
             ToggleUIKey = Config.Bind("UI", "ToggleKey", KeyCode.F5,
                 "Key to toggle the autoloader UI");
@@ -267,7 +267,7 @@ namespace TRAutoloaderPlugin
                 hTitle.transform.SetParent(header.transform, false);
                 Text ht = hTitle.AddComponent<Text>();
                 ht.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-                ht.text = "TR AUTOLOADER 1.1.3 (F5)";
+                ht.text = "TR AUTOLOADER 1.1.4 (F5)";
                 ht.alignment = TextAnchor.MiddleCenter;
                 ht.color = new Color(1f, 0.8f, 0.4f);
                 ht.fontSize = 14;
@@ -1412,12 +1412,11 @@ namespace TRAutoloaderPlugin
 
         private static bool IsDrinkTargetUsable(Container target)
         {
-            if (target == null || !target.isActiveAndEnabled || target.slots == null || target.slots.Length == 0) return false;
-
-            // Accept any dispenser that is inside a tavern zone, not only the dining room. Wine kegs
-            // and other drink dispensers are often placed in the bar area, which can be zoned
-            // separately from the dining room, and they still need filling.
-            return GetTavernZone(target.transform.position) != null;
+            // Any active dispenser counts. Earlier versions required a dining-room zone, then any
+            // tavern zone, but wine kegs are routinely placed in unzoned bar space (zone=none), so
+            // the zone gate just blocked them. The "only top off dispensers that already hold a
+            // drink" rule is what prevents unwanted fills, not the zone.
+            return target != null && target.isActiveAndEnabled && target.slots != null && target.slots.Length > 0;
         }
 
         // Cached TavernZonesManager singleton — resolving it via reflection on every zone check was the
