@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-07-08 (2)
+
+### TRAutoloader 1.1.2
+
+- The debug log now appends across game restarts instead of wiping on each launch, so test data is not lost between sessions while drink loading is being diagnosed. No loading behavior change.
+
 ## 2026-07-08
 
 ### TRAutoloader 1.1.1

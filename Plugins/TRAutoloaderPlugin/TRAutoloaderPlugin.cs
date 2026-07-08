@@ -11,7 +11,7 @@ using UnityEngine.EventSystems;
 
 namespace TRAutoloaderPlugin
 {
-    [BepInPlugin("com.lolaiur.trautoloader", "TR Autoloader", "1.1.1")]
+    [BepInPlugin("com.lolaiur.trautoloader", "TR Autoloader", "1.1.2")]
     [BepInProcess("TravellersRest.exe")]
     public class Plugin : BaseUnityPlugin
     {
@@ -32,9 +32,9 @@ namespace TRAutoloaderPlugin
             string logDir = Path.Combine(Paths.GameRootPath, "ModLogs");
             Directory.CreateDirectory(logDir);
             LogPath = Path.Combine(logDir, "autoload_debug.txt");
-            try { File.Delete(LogPath); } catch { }
-            File.WriteAllText(LogPath, "TR Autoloader 1.1.1\n");
-            Logger.LogInfo("TR Autoloader 1.1.1");
+            // Append (do not wipe) so test data survives game restarts for diagnosis.
+            File.AppendAllText(LogPath, "\n=== session TR Autoloader 1.1.2 ===\n");
+            Logger.LogInfo("TR Autoloader 1.1.2");
 
             ToggleUIKey = Config.Bind("UI", "ToggleKey", KeyCode.F5,
                 "Key to toggle the autoloader UI");
@@ -267,7 +267,7 @@ namespace TRAutoloaderPlugin
                 hTitle.transform.SetParent(header.transform, false);
                 Text ht = hTitle.AddComponent<Text>();
                 ht.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-                ht.text = "TR AUTOLOADER 1.1.1 (F5)";
+                ht.text = "TR AUTOLOADER 1.1.2 (F5)";
                 ht.alignment = TextAnchor.MiddleCenter;
                 ht.color = new Color(1f, 0.8f, 0.4f);
                 ht.fontSize = 14;
