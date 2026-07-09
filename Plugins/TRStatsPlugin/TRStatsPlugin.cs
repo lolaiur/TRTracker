@@ -39,8 +39,8 @@ namespace TRStats
             Directory.CreateDirectory(logDir);
             LogPath = Path.Combine(logDir, "trstats_debug.txt");
             try { File.Delete(LogPath); } catch { }
-            File.WriteAllText(LogPath, "TRStats 1.3.0\n");
-            Logger.LogInfo("TRStats 1.3.0");
+            File.WriteAllText(LogPath, "TRStats 1.3.1\n");
+            Logger.LogInfo("TRStats 1.3.1");
 
             // Initialize config
             PlayerSpeedMultiplier = Config.Bind("Player", "SpeedMultiplier", 1.0f,
@@ -86,6 +86,7 @@ namespace TRStats
             try { new Harmony(PluginInfo.PLUGIN_GUID).PatchAll(); } catch (Exception ex) {
                 File.AppendAllText(LogPath, "Harmony error: " + ex.Message + "\n");
             }
+            Patches.LogPatchDiagnostics();
         }
 
         void OnSceneLoaded(UnityEngine.SceneManagement.Scene scene, UnityEngine.SceneManagement.LoadSceneMode mode)
@@ -294,7 +295,7 @@ namespace TRStats
                 hTitle.transform.SetParent(header.transform, false);
                 Text ht = hTitle.AddComponent<Text>();
                 ht.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-                ht.text = "TR CHEATS 1.3.0 (F4)";
+                ht.text = "TR CHEATS 1.3.1 (F4)";
                 ht.alignment = TextAnchor.MiddleCenter;
                 ht.color = new Color(1f, 0.8f, 0.4f);
                 ht.fontSize = 14;
@@ -1100,6 +1101,6 @@ namespace TRStats
     {
         public const string PLUGIN_GUID = "com.trstats.mod";
         public const string PLUGIN_NAME = "TR Stats";
-        public const string PLUGIN_VERSION = "1.3.0";
+        public const string PLUGIN_VERSION = "1.3.1";
     }
 }

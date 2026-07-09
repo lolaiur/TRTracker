@@ -158,6 +158,32 @@ namespace TRStats
                     new AcceptableValueRange<float>(0.5f, 5.0f)));
         }
 
+        private static float _nextWaterLogTime;
+        internal static void LogWater(string message)
+        {
+            if (Time.unscaledTime < _nextWaterLogTime) return;
+            _nextWaterLogTime = Time.unscaledTime + 5f;
+            try { File.AppendAllText(Plugin.LogPath, "[Water] " + message + "\n"); } catch { }
+        }
+
+        // One-time diagnostic: count how many methods each dynamic water-patch finder resolves,
+        // so the log shows whether the patches actually attached to anything after a game update.
+        public static void LogPatchDiagnostics()
+        {
+            try
+            {
+                int well = 0;
+                foreach (MethodBase m in PatchTargetFinder.FindWellWaterMethods()) well++;
+                int crafter = 0;
+                foreach (MethodBase m in PatchTargetFinder.FindCrafterReturnBucketMethods()) crafter++;
+                File.AppendAllText(Plugin.LogPath, "[Water] Patch targets found: well=" + well + " crafter=" + crafter + "\n");
+            }
+            catch (Exception ex)
+            {
+                try { File.AppendAllText(Plugin.LogPath, "[Water] diag error: " + ex.Message + "\n"); } catch { }
+            }
+        }
+
         /// <summary>
         /// Patch tavern reputation perks bonus calculation
         /// </summary>
@@ -294,6 +320,7 @@ namespace TRStats
                 {
                     // Skip emptying buckets, just return true to indicate success
                     __result = true;
+                    LogWater("Well empty-bucket patch fired (infinite water).");
                     return false; // Skip original method
                 }
                 return true; // Run original method
@@ -329,6 +356,7 @@ namespace TRStats
                             string.Equals(__1.item.nameId, commonReferences.bucketItem.nameId))
                         {
                             __1.item = commonReferences.bucketOfWaterItem;
+                            LogWater("Crafter bucket->water swap fired (infinite water).");
                         }
                     }
                 }

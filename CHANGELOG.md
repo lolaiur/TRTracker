@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-07-09
+
+### TRAutoloader 1.2.0
+
+- Fixed food not loading and a recurring lag spike. A stale compatibility cache made the loader keep trying to add a food that no longer fit the bar menu (it spammed "cannot fit Pescado Asado" every tick and blocked all food). The cache is removed so fit is checked fresh each time.
+- Raised the per-tick caps (drink targets, drink units, food moves) so more dispensers and kegs fill per tick instead of one at a time. Unity requires all game-object access on the main thread, so true background threading is not safe; raising the caps is how the loader attends multiple kegs in the same tick.
+- Verbose debug logging is off by default (still available via Debug / VerboseDrinkLog) and the log clears on each launch. Only event-level lines (loads, assignments, errors) remain.
+- Added a rolling "recent actions" feed to the F5 panel.
+
+### TRStats 1.3.1
+
+- Added diagnostics for the infinite-water cheat (logs the patch target counts and when the bucket patches fire) so we can confirm whether they attach and fire after the game update.
+
 ## 2026-07-08 (4)
 
 ### TRAutoloader 1.1.4

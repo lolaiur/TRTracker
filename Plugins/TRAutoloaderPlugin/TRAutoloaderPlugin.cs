@@ -11,7 +11,7 @@ using UnityEngine.EventSystems;
 
 namespace TRAutoloaderPlugin
 {
-    [BepInPlugin("com.lolaiur.trautoloader", "TR Autoloader", "1.1.4")]
+    [BepInPlugin("com.lolaiur.trautoloader", "TR Autoloader", "1.2.0")]
     [BepInProcess("TravellersRest.exe")]
     public class Plugin : BaseUnityPlugin
     {
@@ -33,8 +33,9 @@ namespace TRAutoloaderPlugin
             Directory.CreateDirectory(logDir);
             LogPath = Path.Combine(logDir, "autoload_debug.txt");
             // Append (do not wipe) so test data survives game restarts for diagnosis.
-            File.AppendAllText(LogPath, "\n=== session TR Autoloader 1.1.4 ===\n");
-            Logger.LogInfo("TR Autoloader 1.1.4");
+            try { File.Delete(LogPath); } catch { }
+            File.WriteAllText(LogPath, "TR Autoloader 1.2.0\n");
+            Logger.LogInfo("TR Autoloader 1.2.0");
 
             ToggleUIKey = Config.Bind("UI", "ToggleKey", KeyCode.F5,
                 "Key to toggle the autoloader UI");
@@ -117,7 +118,7 @@ namespace TRAutoloaderPlugin
         private RectTransform _panelRT;
         private GameObject _contentObj;
         private bool _showUI = true;
-        private float _expandedHeight = 360f;
+        private float _expandedHeight = 460f;
         private float _collapsedHeight = 35f;
 
         private Text _infoText;
@@ -190,6 +191,7 @@ namespace TRAutoloaderPlugin
                 info += "\nFood Loader: " + BarAutoloaderService.GetFoodLoaderSummary();
                 info += "\nDrink Loader: " + BarAutoloaderService.GetDrinkLoaderSummary();
                 info += "\nLast: " + BarAutoloaderService.GetLastStatusSummary();
+                info += BarAutoloaderService.GetRecentActionsText();
                 _infoText.text = info;
             } catch { }
         }
@@ -267,7 +269,7 @@ namespace TRAutoloaderPlugin
                 hTitle.transform.SetParent(header.transform, false);
                 Text ht = hTitle.AddComponent<Text>();
                 ht.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-                ht.text = "TR AUTOLOADER 1.1.4 (F5)";
+                ht.text = "TR AUTOLOADER 1.2.0 (F5)";
                 ht.alignment = TextAnchor.MiddleCenter;
                 ht.color = new Color(1f, 0.8f, 0.4f);
                 ht.fontSize = 14;
@@ -348,7 +350,7 @@ namespace TRAutoloaderPlugin
                 GameObject infoObj = new GameObject("InfoText");
                 infoObj.transform.SetParent(_contentObj.transform, false);
                 LayoutElement infoLayout = infoObj.AddComponent<LayoutElement>();
-                infoLayout.minHeight = 90;
+                infoLayout.minHeight = 160;
                 _infoText = infoObj.AddComponent<Text>();
                 _infoText.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
                 _infoText.text = "Loading...";
@@ -579,9 +581,9 @@ namespace TRAutoloaderPlugin
         private const float AssignmentDelaySeconds = 1.5f;
         private const float DispenserRescanSeconds = 8f;
         private const float DrinkRejectCooldownSeconds = 120f;
-        private const int MaxDrinkTargetsPerTick = 6;
-        private const int MaxFoodMovesPerTick = 4;
-        private const int MaxDrinkUnitsPerTick = 8;
+        private const int MaxDrinkTargetsPerTick = 12;
+        private const int MaxFoodMovesPerTick = 8;
+        private const int MaxDrinkUnitsPerTick = 20;
         private static bool VerboseDrinkDebug;
 
         private static float _nextRunTime;
@@ -591,6 +593,8 @@ namespace TRAutoloaderPlugin
         private static float _nextNoSourceLogTime;
         private static string _lastStatus = "Idle";
         private static float _lastStatusTime = -999f;
+        private const int ActionFeedCapacity = 6;
+        private static readonly List<string> _actionFeed = new List<string>(ActionFeedCapacity);
         private static ItemContainer _cachedFoodLoader;
         private static ItemContainer _cachedDrinkLoader;
         private static DrinkDispenser[] _cachedDispensers = new DrinkDispenser[0];
@@ -598,7 +602,6 @@ namespace TRAutoloaderPlugin
         private static TavernZonesManager _cachedZoneManager;
         private static readonly Dictionary<long, int> _observedDrinkCaps = new Dictionary<long, int>();
         private static readonly HashSet<long> _drinkCompatibilityCache = new HashSet<long>();
-        private static readonly HashSet<long> _foodCompatibilityCache = new HashSet<long>();
         private static readonly Dictionary<long, float> _drinkRejectCooldowns = new Dictionary<long, float>();
         private static readonly Dictionary<string, MethodInfo> _itemCloneMethodCache = new Dictionary<string, MethodInfo>();
         private static readonly Dictionary<Type, MethodInfo> _itemFactoryMethodCache = new Dictionary<Type, MethodInfo>();
@@ -622,7 +625,6 @@ namespace TRAutoloaderPlugin
             _cachedZoneManager = null;
             _observedDrinkCaps.Clear();
             _drinkCompatibilityCache.Clear();
-            _foodCompatibilityCache.Clear();
             _drinkRejectCooldowns.Clear();
         }
 
@@ -638,7 +640,6 @@ namespace TRAutoloaderPlugin
             _nextDrinkIdleLogTime = 0f;
             _observedDrinkCaps.Clear();
             _drinkCompatibilityCache.Clear();
-            _foodCompatibilityCache.Clear();
             _drinkRejectCooldowns.Clear();
             _nextRunTime = string.Equals(sceneName, "Gameplay", StringComparison.Ordinal)
                 ? Time.unscaledTime + GameplayWarmupSeconds
@@ -691,7 +692,7 @@ namespace TRAutoloaderPlugin
             try {
                 if (Plugin.AutoLoadEnabled != null && !Plugin.AutoLoadEnabled.Value) return;
 
-                VerboseDrinkDebug = true; // forced on for 1.0.8 diagnosis
+                VerboseDrinkDebug = Plugin.VerboseDebug != null && Plugin.VerboseDebug.Value;
 
                 float interval = Plugin.AutoloaderIntervalSeconds != null ? Mathf.Max(1f, Plugin.AutoloaderIntervalSeconds.Value) : 6f;
                 if (Time.unscaledTime < _nextRunTime) return;
@@ -1801,17 +1802,14 @@ namespace TRAutoloaderPlugin
         {
             if (target == null || instance == null) return false;
 
-            // Cache positive results per (target, item) so the clone only happens once per pairing.
-            long key = GetDrinkCacheKey(target, instance);
-            if (key != 0L && _foodCompatibilityCache.Contains(key)) return true;
-
+            // No compatibility cache here. A container like the bar menu changes capacity as it
+            // fills and empties, so a cached "fits" result goes stale and the loader would keep
+            // picking an item that no longer fits (it spammed "cannot fit Pescado Asado" every tick).
             ItemInstance clone = CloneItemInstance(instance);
             if (clone == null) return false;
 
             try {
-                bool result = target.CanFitItems(clone, 1);
-                if (result && key != 0L) _foodCompatibilityCache.Add(key);
-                return result;
+                return target.CanFitItems(clone, 1);
             }
             catch {
                 return false;
@@ -2075,7 +2073,22 @@ namespace TRAutoloaderPlugin
         {
             _lastStatus = message;
             _lastStatusTime = Time.unscaledTime;
+            RecordAction(message);
+        }
+
+        // Pushes an action onto the rolling feed shown in the panel (most recent first) and also
+        // writes it to the log file. Used for loads, assignments, and clears.
+        private static void RecordAction(string message)
+        {
+            _actionFeed.Insert(0, message);
+            while (_actionFeed.Count > ActionFeedCapacity) _actionFeed.RemoveAt(_actionFeed.Count - 1);
             Log(message);
+        }
+
+        public static string GetRecentActionsText()
+        {
+            if (_actionFeed.Count == 0) return "";
+            return "\n--- recent ---\n" + string.Join("\n", _actionFeed.ToArray());
         }
 
         private static void Log(string message)
