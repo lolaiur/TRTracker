@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-07-10
+
+### TRStats 1.3.2
+
+- Fixed the infinite-water cheat for pet and animal water bowls. Filling a cat/dog bowl or hen-house water feeder consumes a water bucket via AnimalFeeder.CanFillWithWater, which the previous Well/Crafter patches did not cover. When infinite water is on, that method is now skipped so the bowl fills and the bucket is kept.
+
 ## 2026-07-09
 
 ### TRAutoloader 1.2.0

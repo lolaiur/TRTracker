@@ -364,6 +364,29 @@ namespace TRStats
         }
 
         /// <summary>
+        /// Patch AnimalFeeder.CanFillWithWater (used by pet/cat/dog water bowls and hen houses) so a
+        /// water bucket is not consumed when infinite water is enabled. The caller fills the feeder
+        /// when this returns true, so we just return true without running the original consume logic.
+        /// </summary>
+        [HarmonyPatch(typeof(AnimalFeeder), "CanFillWithWater")]
+        public static class AnimalFeederWaterPatches
+        {
+            [HarmonyPrefix]
+            public static bool CanFillWithWater_Prefix(ref bool __result)
+            {
+                if (Plugin.InfiniteWater != null && Plugin.InfiniteWater.Value)
+                {
+                    // Skip the original: it removes a water bucket and gives an empty one. With
+                    // infinite water, let the fill proceed and keep the bucket.
+                    __result = true;
+                    LogWater("AnimalFeeder water fill: bucket kept (infinite water).");
+                    return false;
+                }
+                return true;
+            }
+        }
+
+        /// <summary>
         /// Work around a hard crash in the updated game while prewarming mine pieces during Gameplay scene load.
         /// The pool can still create pieces lazily later; this only skips the up-front clone loop.
         /// </summary>

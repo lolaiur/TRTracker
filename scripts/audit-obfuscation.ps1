@@ -253,6 +253,7 @@ $targets = @(
     [pscustomobject]@{ Plugin = "TRStats"; Check = "CommonReferences singleton"; Found = Test-StaticMemberOfType -TypeName "CommonReferences" -ValueTypeName "CommonReferences" },
     [pscustomobject]@{ Plugin = "TRStats"; Check = "CommonReferences.bucketItem"; Found = Test-MemberByName -TypeName "CommonReferences" -MemberName "bucketItem" -MemberKind "Field" },
     [pscustomobject]@{ Plugin = "TRStats"; Check = "CommonReferences.bucketOfWaterItem"; Found = Test-MemberByName -TypeName "CommonReferences" -MemberName "bucketOfWaterItem" -MemberKind "Field" },
+    [pscustomobject]@{ Plugin = "TRStats"; Check = "AnimalFeeder.CanFillWithWater"; Found = Test-MemberByName -TypeName "AnimalFeeder" -MemberName "CanFillWithWater" -MemberKind "Method" },
     [pscustomobject]@{ Plugin = "TRStats"; Check = "Item.nameId"; Found = Test-MemberByName -TypeName "Item" -MemberName "nameId" -MemberKind "Field" },
     [pscustomobject]@{ Plugin = "TRBarrels"; Check = "AgingBarrel.inputSlot"; Found = Test-MemberByName -TypeName "AgingBarrel" -MemberName "inputSlot" -MemberKind "Field" },
     [pscustomobject]@{ Plugin = "TRBarrels"; Check = "AgingBarrel.timer"; Found = Test-MemberByName -TypeName "AgingBarrel" -MemberName "timer" -MemberKind "Field" },
