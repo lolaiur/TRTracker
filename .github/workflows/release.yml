@@ -42,6 +42,7 @@ jobs:
         test -f build/TRBar.dll || { echo "TRBar.dll missing!"; exit 1; }
         test -f build/TRBarrels.dll || { echo "TRBarrels.dll missing!"; exit 1; }
         test -f build/TRStats.dll || { echo "TRStats.dll missing!"; exit 1; }
+        test -f build/TRAutoloader.dll || { echo "TRAutoloader.dll missing!"; exit 1; }
         echo "✓ All DLLs present"
 
     - name: Package release

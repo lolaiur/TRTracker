@@ -158,6 +158,32 @@ namespace TRStats
                     new AcceptableValueRange<float>(0.5f, 5.0f)));
         }
 
+        private static float _nextWaterLogTime;
+        internal static void LogWater(string message)
+        {
+            if (Time.unscaledTime < _nextWaterLogTime) return;
+            _nextWaterLogTime = Time.unscaledTime + 5f;
+            try { File.AppendAllText(Plugin.LogPath, "[Water] " + message + "\n"); } catch { }
+        }
+
+        // One-time diagnostic: count how many methods each dynamic water-patch finder resolves,
+        // so the log shows whether the patches actually attached to anything after a game update.
+        public static void LogPatchDiagnostics()
+        {
+            try
+            {
+                int well = 0;
+                foreach (MethodBase m in PatchTargetFinder.FindWellWaterMethods()) well++;
+                int crafter = 0;
+                foreach (MethodBase m in PatchTargetFinder.FindCrafterReturnBucketMethods()) crafter++;
+                File.AppendAllText(Plugin.LogPath, "[Water] Patch targets found: well=" + well + " crafter=" + crafter + "\n");
+            }
+            catch (Exception ex)
+            {
+                try { File.AppendAllText(Plugin.LogPath, "[Water] diag error: " + ex.Message + "\n"); } catch { }
+            }
+        }
+
         /// <summary>
         /// Patch tavern reputation perks bonus calculation
         /// </summary>
@@ -263,7 +289,7 @@ namespace TRStats
                 if (Plugin.InfiniteCoal != null && Plugin.InfiniteCoal.Value)
                 {
                     // Get current fuel via property
-                    int currentFuel = __instance.AHCDANNFGPG;
+                    int currentFuel = TRStatsReflection.GetCrafterFuel(__instance);
 
                     // If new fuel would be less than current (consumption), prevent it
                     if (__0 < currentFuel)
@@ -294,6 +320,7 @@ namespace TRStats
                 {
                     // Skip emptying buckets, just return true to indicate success
                     __result = true;
+                    LogWater("Well empty-bucket patch fired (infinite water).");
                     return false; // Skip original method
                 }
                 return true; // Run original method
@@ -319,18 +346,102 @@ namespace TRStats
                 if (Plugin.InfiniteWater != null && Plugin.InfiniteWater.Value)
                 {
                     // Check if the item being returned is an empty bucket
-                    if (CommonReferences.GOKBJFAMHMJ != null &&
-                        CommonReferences.GOKBJFAMHMJ.bucketItem != null &&
-                        CommonReferences.GOKBJFAMHMJ.bucketOfWaterItem != null)
+                    CommonReferences commonReferences = TRStatsReflection.FindSingleton<CommonReferences>();
+                    if (commonReferences != null &&
+                        commonReferences.bucketItem != null &&
+                        commonReferences.bucketOfWaterItem != null)
                     {
                         // Compare items - if it's an empty bucket, swap it for water bucket
                         if (__1.item != null &&
-                            string.Equals(__1.item.nameId, CommonReferences.GOKBJFAMHMJ.bucketItem.nameId))
+                            string.Equals(__1.item.nameId, commonReferences.bucketItem.nameId))
                         {
-                            __1.item = CommonReferences.GOKBJFAMHMJ.bucketOfWaterItem;
+                            __1.item = commonReferences.bucketOfWaterItem;
+                            LogWater("Crafter bucket->water swap fired (infinite water).");
                         }
                     }
                 }
+            }
+        }
+
+        /// <summary>
+        /// Patch AnimalFeeder.CanFillWithWater (used by pet/cat/dog water bowls and hen houses) so a
+        /// water bucket is not consumed when infinite water is enabled. The caller fills the feeder
+        /// when this returns true, so we just return true without running the original consume logic.
+        /// </summary>
+        [HarmonyPatch(typeof(AnimalFeeder), "CanFillWithWater")]
+        public static class AnimalFeederWaterPatches
+        {
+            [HarmonyPrefix]
+            public static bool CanFillWithWater_Prefix(ref bool __result)
+            {
+                if (Plugin.InfiniteWater != null && Plugin.InfiniteWater.Value)
+                {
+                    // Skip the original: it removes a water bucket and gives an empty one. With
+                    // infinite water, let the fill proceed and keep the bucket.
+                    __result = true;
+                    LogWater("AnimalFeeder water fill: bucket kept (infinite water).");
+                    return false;
+                }
+                return true;
+            }
+        }
+
+        /// <summary>
+        /// Work around a hard crash in the updated game while prewarming mine pieces during Gameplay scene load.
+        /// The pool can still create pieces lazily later; this only skips the up-front clone loop.
+        /// </summary>
+        [HarmonyPatch(typeof(MinePiecePool), "Awake")]
+        public static class MinePiecePoolPatches
+        {
+            private static readonly FieldInfo PoolDictionaryField = FindPoolDictionaryField();
+
+            [HarmonyPrefix]
+            public static bool Awake_Prefix(MinePiecePool __instance)
+            {
+                if (Plugin.SkipMinePiecePoolPrewarm == null || !Plugin.SkipMinePiecePoolPrewarm.Value) return true;
+                if (__instance == null) return true;
+
+                try
+                {
+                    MinePiecePool._instance = __instance;
+                    SeedPoolDictionary(__instance);
+                    File.AppendAllText(Plugin.LogPath, "[Compat] Skipped MinePiecePool prewarm during save load.\n");
+                    return false;
+                }
+                catch (Exception ex)
+                {
+                    try { File.AppendAllText(Plugin.LogPath, "[Compat] MinePiecePool prewarm skip failed: " + ex + "\n"); } catch { }
+                    return true;
+                }
+            }
+
+            private static void SeedPoolDictionary(MinePiecePool pool)
+            {
+                if (PoolDictionaryField == null || pool.poolPieces == null) return;
+
+                Dictionary<int, Queue<MinePiece>> dictionary = PoolDictionaryField.GetValue(pool) as Dictionary<int, Queue<MinePiece>>;
+                if (dictionary == null)
+                {
+                    dictionary = new Dictionary<int, Queue<MinePiece>>();
+                    PoolDictionaryField.SetValue(pool, dictionary);
+                }
+
+                foreach (MinePiece piece in pool.poolPieces)
+                {
+                    if (piece == null) continue;
+                    int key = piece.JBCFIHPKMLF;
+                    if (!dictionary.ContainsKey(key)) dictionary[key] = new Queue<MinePiece>();
+                }
+            }
+
+            private static FieldInfo FindPoolDictionaryField()
+            {
+                foreach (FieldInfo field in typeof(MinePiecePool).GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
+                {
+                    if (field.FieldType == typeof(Dictionary<int, Queue<MinePiece>>)) return field;
+                }
+
+                return null;
             }
         }
     }

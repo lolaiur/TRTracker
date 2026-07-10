@@ -87,19 +87,19 @@ foreach ($r in $RefList) {
 $LocalDllDir = Join-Path $PSScriptRoot "dll"
 if (-Not (Test-Path $LocalDllDir)) { New-Item -ItemType Directory -Force -Path $LocalDllDir | Out-Null }
 
-function Compile-Mod($SourceFile, $DllName) {
+function Compile-Mod([string[]]$SourceFiles, $DllName) {
     Write-Host "Compiling $DllName..." -ForegroundColor Yellow
-    $SourcePath = Join-Path $PSScriptRoot $SourceFile
+    
+    $SourcePaths = $SourceFiles | ForEach-Object { "`"$(Join-Path $PSScriptRoot $_)`"" }
+    $SourceString = $SourcePaths -join " "
+    
     $OutDLL = Join-Path $LocalDllDir $DllName
 
     if (Test-Path $OutDLL) { Remove-Item $OutDLL }
 
-    $Cmd = "& `"$CSC`" /t:library /out:`"$OutDLL`" $RefString `"$SourcePath`""
-    # Write-Host "CMD: $Cmd"
-    
     # Execute and capture output mixed
     try {
-        $p = Start-Process -FilePath $CSC -ArgumentList "/t:library /out:`"$OutDLL`" $RefString `"$SourcePath`"" -NoNewWindow -Wait -PassThru
+        $p = Start-Process -FilePath $CSC -ArgumentList "/t:library /out:`"$OutDLL`" $RefString $SourceString" -NoNewWindow -Wait -PassThru
         if ($p.ExitCode -ne 0) {
             Write-Error "Compiler exited with code $($p.ExitCode)"
         }
@@ -118,8 +118,10 @@ function Compile-Mod($SourceFile, $DllName) {
 }
 
 # Execute
-Compile-Mod "TRTrackerPlugin.cs" "TRTracker.dll"
-Compile-Mod "TRBarrelsPlugin.cs" "TRBarrels.dll"
-Compile-Mod "TRBarPlugin.cs" "TRBar.dll"
+Compile-Mod @("Plugins\TRTrackerPlugin\TRTrackerPlugin.cs") "TRTracker.dll"
+Compile-Mod @("Plugins\TRBarrelsPlugin\TRBarrelsPlugin.cs") "TRBarrels.dll"
+Compile-Mod @("Plugins\TRBarPlugin\TRBarPlugin.cs") "TRBar.dll"
+Compile-Mod @("Plugins\TRStatsPlugin\TRStatsPlugin.cs", "Plugins\TRStatsPlugin\Patches.cs") "TRStats.dll"
+Compile-Mod @("Plugins\TRAutoloaderPlugin\TRAutoloaderPlugin.cs") "TRAutoloader.dll"
 
 Stop-Transcript

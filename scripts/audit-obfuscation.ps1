@@ -229,10 +229,10 @@ function Test-CrafterReturnBucketTargets {
 }
 
 $targets = @(
-    [pscustomobject]@{ Plugin = "TRTracker"; Check = "TavernManager singleton"; Found = Test-MemberByName -TypeName "TavernManager" -MemberName "GOKBJFAMHMJ" -MemberKind "Property" },
-    [pscustomobject]@{ Plugin = "TRTracker"; Check = "TavernReputation singleton"; Found = Test-MemberByName -TypeName "TavernReputation" -MemberName "GOKBJFAMHMJ" -MemberKind "Property" },
-    [pscustomobject]@{ Plugin = "TRTracker"; Check = "TavernServiceManager singleton"; Found = Test-MemberByName -TypeName "TavernServiceManager" -MemberName "GOKBJFAMHMJ" -MemberKind "Property" },
-    [pscustomobject]@{ Plugin = "TRTracker"; Check = "TavernZonesManager singleton"; Found = Test-MemberByName -TypeName "TavernZonesManager" -MemberName "GOKBJFAMHMJ" -MemberKind "Property" },
+    [pscustomobject]@{ Plugin = "TRTracker"; Check = "TavernManager singleton"; Found = Test-StaticMemberOfType -TypeName "TavernManager" -ValueTypeName "TavernManager" },
+    [pscustomobject]@{ Plugin = "TRTracker"; Check = "TavernReputation singleton"; Found = Test-StaticMemberOfType -TypeName "TavernReputation" -ValueTypeName "TavernReputation" },
+    [pscustomobject]@{ Plugin = "TRTracker"; Check = "TavernServiceManager singleton"; Found = Test-StaticMemberOfType -TypeName "TavernServiceManager" -ValueTypeName "TavernServiceManager" },
+    [pscustomobject]@{ Plugin = "TRTracker"; Check = "TavernZonesManager singleton"; Found = Test-StaticMemberOfType -TypeName "TavernZonesManager" -ValueTypeName "TavernZonesManager" },
     [pscustomobject]@{ Plugin = "TRTracker"; Check = "WorldTime GameDate source"; Found = Test-StaticMemberOfType -TypeName "WorldTime" -ValueTypeName "GameDate" },
     [pscustomobject]@{ Plugin = "TRTracker"; Check = "WorldTime absolute time source"; Found = Test-StaticMemberOfType -TypeName "WorldTime" -ValueTypeName "UInt64" },
     [pscustomobject]@{ Plugin = "TRTracker"; Check = "WorldTime multiplier field"; Found = Test-MemberByName -TypeName "WorldTime" -MemberName "multiplier" -MemberKind "Field" },
@@ -250,12 +250,26 @@ $targets = @(
     [pscustomobject]@{ Plugin = "TRStats"; Check = "Crafter.SetFuel"; Found = Test-MemberByName -TypeName "Crafter" -MemberName "SetFuel" -MemberKind "Method" },
     [pscustomobject]@{ Plugin = "TRStats"; Check = "Dynamic crafter bucket-return target"; Found = Test-CrafterReturnBucketTargets },
     [pscustomobject]@{ Plugin = "TRStats"; Check = "Dynamic well water target"; Found = Test-WellWaterTargets },
-    [pscustomobject]@{ Plugin = "TRStats"; Check = "CommonReferences singleton"; Found = Test-MemberByName -TypeName "CommonReferences" -MemberName "GOKBJFAMHMJ" -MemberKind "Property" },
+    [pscustomobject]@{ Plugin = "TRStats"; Check = "CommonReferences singleton"; Found = Test-StaticMemberOfType -TypeName "CommonReferences" -ValueTypeName "CommonReferences" },
     [pscustomobject]@{ Plugin = "TRStats"; Check = "CommonReferences.bucketItem"; Found = Test-MemberByName -TypeName "CommonReferences" -MemberName "bucketItem" -MemberKind "Field" },
     [pscustomobject]@{ Plugin = "TRStats"; Check = "CommonReferences.bucketOfWaterItem"; Found = Test-MemberByName -TypeName "CommonReferences" -MemberName "bucketOfWaterItem" -MemberKind "Field" },
+    [pscustomobject]@{ Plugin = "TRStats"; Check = "AnimalFeeder.CanFillWithWater"; Found = Test-MemberByName -TypeName "AnimalFeeder" -MemberName "CanFillWithWater" -MemberKind "Method" },
+    [pscustomobject]@{ Plugin = "TRStats"; Check = "AnimalFeederWater.FillFeeder"; Found = Test-MemberByName -TypeName "AnimalFeederWater" -MemberName "FillFeeder" -MemberKind "Method" },
+    [pscustomobject]@{ Plugin = "TRStats"; Check = "AnimalFeederWaterHenHouse.currentAmount"; Found = Test-MemberByName -TypeName "AnimalFeederWaterHenHouse" -MemberName "currentAmount" -MemberKind "Field" },
+    [pscustomobject]@{ Plugin = "TRStats"; Check = "AnimalFeeder.maxAmount"; Found = Test-MemberByName -TypeName "AnimalFeeder" -MemberName "maxAmount" -MemberKind "Field" },
     [pscustomobject]@{ Plugin = "TRStats"; Check = "Item.nameId"; Found = Test-MemberByName -TypeName "Item" -MemberName "nameId" -MemberKind "Field" },
     [pscustomobject]@{ Plugin = "TRBarrels"; Check = "AgingBarrel.inputSlot"; Found = Test-MemberByName -TypeName "AgingBarrel" -MemberName "inputSlot" -MemberKind "Field" },
-    [pscustomobject]@{ Plugin = "TRBarrels"; Check = "AgingBarrel.timer"; Found = Test-MemberByName -TypeName "AgingBarrel" -MemberName "timer" -MemberKind "Field" }
+    [pscustomobject]@{ Plugin = "TRBarrels"; Check = "AgingBarrel.timer"; Found = Test-MemberByName -TypeName "AgingBarrel" -MemberName "timer" -MemberKind "Field" },
+    [pscustomobject]@{ Plugin = "TRAutoloader"; Check = "DrinkDispenser.isBeerTap"; Found = Test-MemberByName -TypeName "DrinkDispenser" -MemberName "isBeerTap" -MemberKind "Field" },
+    [pscustomobject]@{ Plugin = "TRAutoloader"; Check = "DrinkDispenser slots"; Found = Test-MemberByName -TypeName "DrinkDispenser" -MemberName "slots" -MemberKind "Field" },
+    [pscustomobject]@{ Plugin = "TRAutoloader"; Check = "BanquetBarrel slots"; Found = Test-MemberByName -TypeName "BanquetBarrel" -MemberName "slots" -MemberKind "Field" },
+    [pscustomobject]@{ Plugin = "TRAutoloader"; Check = "BarMenuInventory.GetInstance"; Found = Test-MemberByName -TypeName "BarMenuInventory" -MemberName "GetInstance" -MemberKind "Method" },
+    [pscustomobject]@{ Plugin = "TRAutoloader"; Check = "TavernZonesManager singleton"; Found = Test-StaticMemberOfType -TypeName "TavernZonesManager" -ValueTypeName "TavernZonesManager" },
+    [pscustomobject]@{ Plugin = "TRAutoloader"; Check = "TavernZone.zoneType"; Found = Test-MemberByName -TypeName "TavernZone" -MemberName "zoneType" -MemberKind "Field" },
+    [pscustomobject]@{ Plugin = "TRAutoloader"; Check = "Placeable.guidString"; Found = Test-MemberByName -TypeName "Placeable" -MemberName "guidString" -MemberKind "Field" },
+    [pscustomobject]@{ Plugin = "TRAutoloader"; Check = "Placeable.GetCurrentTavernZone"; Found = Test-MemberByName -TypeName "Placeable" -MemberName "GetCurrentTavernZone" -MemberKind "Method" },
+    [pscustomobject]@{ Plugin = "TRAutoloader"; Check = "ItemContainer.bigContainer"; Found = Test-MemberByName -TypeName "ItemContainer" -MemberName "bigContainer" -MemberKind "Field" },
+    [pscustomobject]@{ Plugin = "TRAutoloader"; Check = "DrinkDispenser container-updated field"; Found = Test-MemberByName -TypeName "DrinkDispenser" -MemberName "DrinkDispenserContainerUpdated" -MemberKind "Field" }
 )
 
 Write-Host "Live assembly obfuscation audit" -ForegroundColor Cyan

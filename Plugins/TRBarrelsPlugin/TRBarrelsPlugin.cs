@@ -10,7 +10,7 @@ using UnityEngine.SceneManagement;
 
 namespace TRBarrels
 {
-    [BepInPlugin("com.lolaiur.trbarrels", "Tavern Barrels", "1.3.0")]
+    [BepInPlugin("com.lolaiur.trbarrels", "Tavern Barrels", "1.3.1")]
     public class TRBarrelsPlugin : BaseUnityPlugin
     {
         public static TRBarrelsPlugin Instance;
@@ -105,7 +105,7 @@ namespace TRBarrels
                 hTitle.transform.SetParent(header.transform, false);
                 Text ht = hTitle.AddComponent<Text>();
                 ht.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-                ht.text = "AGING STATS 1.3.0 (F2)";
+                ht.text = "TR AGING TRACKER 1.3.1 (F2)";
                 ht.alignment = TextAnchor.MiddleCenter;
                 ht.color = new Color(1f, 0.8f, 0.4f);
                 ht.fontSize = 14;
@@ -140,21 +140,35 @@ namespace TRBarrels
                 GameObject btnObj = new GameObject("CollapseBtn");
                 btnObj.transform.SetParent(header.transform, false); // Child of Header
                 Image btnImg = btnObj.AddComponent<Image>();
-                btnImg.color = Color.green;
+                btnImg.color = new Color(0.18f, 0.28f, 0.18f, 1f);
                 RectTransform btnRT = btnObj.GetComponent<RectTransform>();
                 if (btnRT == null) btnRT = btnObj.AddComponent<RectTransform>();
                 
                 btnRT.anchorMin = new Vector2(1, 0.5f); btnRT.anchorMax = new Vector2(1, 0.5f);
                 btnRT.pivot = new Vector2(1, 0.5f);
                 btnRT.anchoredPosition = new Vector2(-5, 0);
-                btnRT.sizeDelta = new Vector2(20, 20);
+                btnRT.sizeDelta = new Vector2(18, 18);
                 
                 Button btn = btnObj.AddComponent<Button>();
+                btn.targetGraphic = btnImg;
+                GameObject btnLabelObj = new GameObject("Label");
+                btnLabelObj.transform.SetParent(btnObj.transform, false);
+                Text btnLabel = btnLabelObj.AddComponent<Text>();
+                btnLabel.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+                btnLabel.text = "-";
+                btnLabel.alignment = TextAnchor.MiddleCenter;
+                btnLabel.color = Color.white;
+                btnLabel.fontStyle = FontStyle.Bold;
+                btnLabel.raycastTarget = false;
+                RectTransform btnLabelRT = btnLabelObj.GetComponent<RectTransform>();
+                btnLabelRT.anchorMin = Vector2.zero; btnLabelRT.anchorMax = Vector2.one;
+                btnLabelRT.offsetMin = Vector2.zero; btnLabelRT.offsetMax = Vector2.zero;
                 CollapseHandler ch = btnObj.AddComponent<CollapseHandler>();
                 ch.PanelRect = panelRT;
                 ch.ContentObj = body; // Toggle the whole body (Labels + Scroll)
                 ch.ExpandedHeight = 400; 
                 ch.CollapsedHeight = 35; 
+                ch.Label = btnLabel;
                 btn.onClick.AddListener(ch.OnToggle);
 
                 ScrollRect sr = scrollObj.AddComponent<ScrollRect>();
@@ -392,6 +406,14 @@ namespace TRBarrels
         private System.Text.StringBuilder _sbName = new System.Text.StringBuilder();
         private System.Text.StringBuilder _sbStage = new System.Text.StringBuilder();
         private System.Text.StringBuilder _sbTime = new System.Text.StringBuilder();
+        private readonly List<BarrelEntry> _entries = new List<BarrelEntry>(64);
+        private readonly Dictionary<Type, FieldInfo> _inputSlotFields = new Dictionary<Type, FieldInfo>();
+        private readonly Dictionary<Type, FieldInfo> _timerFields = new Dictionary<Type, FieldInfo>();
+        private readonly Dictionary<Type, PropertyInfo> _stackProperties = new Dictionary<Type, PropertyInfo>();
+        private readonly Dictionary<Type, FieldInfo> _itemInstanceFields = new Dictionary<Type, FieldInfo>();
+        private readonly Dictionary<Type, FieldInfo> _totalMinuteFields = new Dictionary<Type, FieldInfo>();
+        private readonly Dictionary<Type, FieldInfo> _startMinuteFields = new Dictionary<Type, FieldInfo>();
+        private readonly Dictionary<Type, PropertyInfo[]> _stageProperties = new Dictionary<Type, PropertyInfo[]>();
 
         void Update()
         {
@@ -444,7 +466,7 @@ namespace TRBarrels
         {
             if (!TextName) return;
             try {
-                List<BarrelEntry> entries = new List<BarrelEntry>();
+                _entries.Clear();
 
                 foreach (var b in cachedBarrels)
                 {
@@ -458,7 +480,7 @@ namespace TRBarrels
 
                     Type bType = b.GetType();
                     
-                    FieldInfo slotsF = bType.GetField("inputSlot", BindingFlags.Public | BindingFlags.Instance);
+                    FieldInfo slotsF = GetCachedField(_inputSlotFields, bType, "inputSlot");
                     if (slotsF == null) continue;
                     Array slots = (Array)slotsF.GetValue(b);
                     if (slots == null) continue;
@@ -475,11 +497,11 @@ namespace TRBarrels
 
                         try {
                             object slot = slots.GetValue(i);
-                            if (slot == null) { entries.Add(e); continue; }
+                            if (slot == null) { _entries.Add(e); continue; }
                             
                             int qty = 0;
                             try {
-                                PropertyInfo stackP = slot.GetType().GetProperty("Stack", BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic);
+                                PropertyInfo stackP = GetCachedProperty(_stackProperties, slot.GetType(), "Stack");
                                 if (stackP != null) qty = (int)stackP.GetValue(slot, null);
                             } catch {}
 
@@ -488,15 +510,15 @@ namespace TRBarrels
                                 e.Stage = "<color=#888888>---</color>";
                                 e.Time = "<color=#888888>---</color>";
                                 e.IsEmpty = true;
-                                entries.Add(e);
+                                _entries.Add(e);
                                 continue;
                             }
                             
                             e.IsEmpty = false;
                             
-                            FieldInfo itemInstF = slot.GetType().GetField("itemInstance", BindingFlags.Public | BindingFlags.Instance);
+                            FieldInfo itemInstF = GetCachedField(_itemInstanceFields, slot.GetType(), "itemInstance");
                             object itemInst = (itemInstF != null) ? itemInstF.GetValue(slot) : null;
-                            if (itemInst == null) { entries.Add(e); continue; }
+                            if (itemInst == null) { _entries.Add(e); continue; }
 
                             // Name
                             string displayName = GetItemName(itemInst);
@@ -513,17 +535,15 @@ namespace TRBarrels
                             try {
                                 Type itemType = itemInst.GetType();
 
-                                // Scan int properties on itemInstance for stage value
-                                foreach (PropertyInfo p in itemType.GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic)) {
-                                    if (p.PropertyType == typeof(int) && p.CanRead) {
-                                        try {
-                                            int val = (int)p.GetValue(itemInst, null);
-                                            if (val >= 1 && val <= 4 && stage == 0) {
-                                                stage = val;
-                                                break;
-                                            }
-                                        } catch {}
+                                foreach (PropertyInfo p in GetStageProperties(itemType)) {
+                                    try {
+                                        int val = (int)p.GetValue(itemInst, null);
+                                        if (val >= 1 && val <= 4 && stage == 0) {
+                                            stage = val;
+                                            break;
+                                        }
                                     }
+                                    catch {}
                                 }
                             } catch {}
                             e.StageVal = stage;
@@ -540,13 +560,14 @@ namespace TRBarrels
                                 e.Time = "<color=green>100.0%</color>";
                                 e.ProgressVal = 101; 
                             } else {
-                                FieldInfo timerF = bType.GetField("timer", BindingFlags.Public | BindingFlags.Instance);
+                                FieldInfo timerF = GetCachedField(_timerFields, bType, "timer");
                                 Array timers = (Array)timerF.GetValue(b);
                                 if (timers != null && timers.Length > i) {
                                     object t = timers.GetValue(i);
                                     if (t != null) {
-                                        FieldInfo totalF = t.GetType().GetField("totalMinToFinish", BindingFlags.Public | BindingFlags.Instance);
-                                        FieldInfo startF = t.GetType().GetField("dateStartedMin", BindingFlags.Public | BindingFlags.Instance);
+                                        Type timerType = t.GetType();
+                                        FieldInfo totalF = GetCachedField(_totalMinuteFields, timerType, "totalMinToFinish");
+                                        FieldInfo startF = GetCachedField(_startMinuteFields, timerType, "dateStartedMin");
                                         if (totalF != null && startF != null) {
                                             ulong total = (ulong)totalF.GetValue(t);
                                             ulong start = (ulong)startF.GetValue(t);
@@ -566,14 +587,14 @@ namespace TRBarrels
                                     }
                                 }
                             }
-                            entries.Add(e);
+                            _entries.Add(e);
                         }
                         catch {}
                     }
                 }
                 
                 // Sort by Stage (Grand -> Empty). Then Progress.
-                entries.Sort((a,b) => {
+                _entries.Sort((a,b) => {
                     int r = b.StageVal.CompareTo(a.StageVal);
                     if (r != 0) return r;
                     r = b.ProgressVal.CompareTo(a.ProgressVal);
@@ -589,7 +610,7 @@ namespace TRBarrels
                 _sbStage.AppendLine("<size=13><b>Stage</b></size>");
                 _sbTime.AppendLine("<size=13><b>Progress</b></size>");
 
-                foreach(var e in entries) { 
+                foreach(var e in _entries) { 
                     _sbName.Append(e.Name).Append("\n");
                     _sbStage.Append(e.Stage).Append("\n");
                     _sbTime.Append(e.Time).Append("\n");
@@ -600,7 +621,7 @@ namespace TRBarrels
                 TextTime.text = _sbTime.ToString();
 
                 if (ContentRect) {
-                    float h = entries.Count * 18.0f; // Approx height
+                    float h = _entries.Count * 18.0f; // Approx height
                     if (h < 300) h = 300;
                     ContentRect.sizeDelta = new Vector2(0, h);
                 }
@@ -608,6 +629,39 @@ namespace TRBarrels
             } catch (Exception ex) {
                 TextName.text = "UI Err: " + ex.Message;
             }
+        }
+
+        private FieldInfo GetCachedField(Dictionary<Type, FieldInfo> cache, Type type, string name)
+        {
+            FieldInfo field;
+            if (cache.TryGetValue(type, out field)) return field;
+            field = type.GetField(name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+            cache[type] = field;
+            return field;
+        }
+
+        private PropertyInfo GetCachedProperty(Dictionary<Type, PropertyInfo> cache, Type type, string name)
+        {
+            PropertyInfo prop;
+            if (cache.TryGetValue(type, out prop)) return prop;
+            prop = type.GetProperty(name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+            cache[type] = prop;
+            return prop;
+        }
+
+        private PropertyInfo[] GetStageProperties(Type type)
+        {
+            PropertyInfo[] props;
+            if (_stageProperties.TryGetValue(type, out props)) return props;
+
+            List<PropertyInfo> matches = new List<PropertyInfo>();
+            foreach (PropertyInfo prop in type.GetProperties(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)) {
+                if (prop.PropertyType == typeof(int) && prop.CanRead) matches.Add(prop);
+            }
+
+            props = matches.ToArray();
+            _stageProperties[type] = props;
+            return props;
         }
 
         private string GetItemName(object itemInstance)
@@ -667,6 +721,7 @@ namespace TRBarrels
         public float ExpandedHeight;
         public float CollapsedHeight;
         public bool IsCollapsed = false;
+        public Text Label;
         
         public void OnToggle()
         {
@@ -677,6 +732,7 @@ namespace TRBarrels
             if (ContentObj) {
                 ContentObj.SetActive(!IsCollapsed);
             }
+            if (Label != null) Label.text = IsCollapsed ? "+" : "-";
         }
     }
 

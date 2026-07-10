@@ -10,7 +10,7 @@ using System.Reflection;
 
 namespace TRBarPlugin
 {
-    [BepInPlugin("com.lolaiur.trbar", "TRBar", "1.3.0")]
+    [BepInPlugin("com.lolaiur.trbar", "TRBar", "1.3.1")]
     [BepInProcess("TravellersRest.exe")]
     public class TRBarPlugin : BaseUnityPlugin
     {
@@ -22,8 +22,8 @@ namespace TRBarPlugin
             Directory.CreateDirectory(logDir);
             LogPath = Path.Combine(logDir, "bar_debug.txt");
             try { File.Delete(LogPath); } catch {}
-            File.WriteAllText(LogPath, "TRBar 1.3.0\n");
-            Logger.LogInfo("TRBar 1.3.0");
+            File.WriteAllText(LogPath, "TRBar 1.3.1\n");
+            Logger.LogInfo("TRBar 1.3.1");
             
             // Cleanup old
             var old = FindObjectOfType<BarTrackerManager>();
@@ -72,6 +72,40 @@ namespace TRBarPlugin
             GUI.Label(new Rect(20, 20, 400, 50), ModName + " Loaded!", style);
             
             alpha -= Time.deltaTime / 5f;
+        }
+    }
+
+    internal static class BarReflection
+    {
+        private static readonly BindingFlags AnyStatic = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static;
+
+        public static T FindSingleton<T>() where T : class
+        {
+            Type type = typeof(T);
+
+            foreach (PropertyInfo prop in type.GetProperties(AnyStatic))
+            {
+                if (prop.PropertyType != type || prop.GetIndexParameters().Length != 0) continue;
+                try
+                {
+                    T value = prop.GetValue(null, null) as T;
+                    if (value != null) return value;
+                }
+                catch { }
+            }
+
+            foreach (FieldInfo field in type.GetFields(AnyStatic))
+            {
+                if (field.FieldType != type) continue;
+                try
+                {
+                    T value = field.GetValue(null) as T;
+                    if (value != null) return value;
+                }
+                catch { }
+            }
+
+            return UnityEngine.Object.FindObjectOfType(type) as T;
         }
     }
 
@@ -251,7 +285,7 @@ namespace TRBarPlugin
                     hTitle.transform.SetParent(header.transform, false);
                     Text ht = hTitle.AddComponent<Text>();
                     if (uiFont != null) ht.font = uiFont;
-                    ht.text = "TR BAR 1.3.0 (F3)";
+                    ht.text = "TR BAR TRACKER 1.3.1 (F3)";
                     ht.alignment = TextAnchor.MiddleCenter;
                     ht.color = new Color(1f, 0.8f, 0.4f);
                     ht.fontSize = 14;
@@ -396,21 +430,35 @@ namespace TRBarPlugin
                 GameObject btnObj = new GameObject("CollapseBtn");
                 btnObj.transform.SetParent(header.transform, false);
                 Image btnImg = btnObj.AddComponent<Image>();
-                btnImg.color = Color.green;
+                btnImg.color = new Color(0.18f, 0.28f, 0.18f, 1f);
 
                 RectTransform btnRT = btnObj.GetComponent<RectTransform>();
                 if (btnRT == null) btnRT = btnObj.AddComponent<RectTransform>();
                 btnRT.anchorMin = new Vector2(1, 0.5f); btnRT.anchorMax = new Vector2(1, 0.5f);
                 btnRT.pivot = new Vector2(1, 0.5f);
                 btnRT.anchoredPosition = new Vector2(-5, 0);
-                btnRT.sizeDelta = new Vector2(20, 20);
+                btnRT.sizeDelta = new Vector2(18, 18);
 
                 Button btn = btnObj.AddComponent<Button>();
+                btn.targetGraphic = btnImg;
+                GameObject btnLabelObj = new GameObject("Label");
+                btnLabelObj.transform.SetParent(btnObj.transform, false);
+                Text btnLabel = btnLabelObj.AddComponent<Text>();
+                btnLabel.font = uiFont != null ? uiFont : Resources.GetBuiltinResource<Font>("Arial.ttf");
+                btnLabel.text = "-";
+                btnLabel.alignment = TextAnchor.MiddleCenter;
+                btnLabel.color = Color.white;
+                btnLabel.fontStyle = FontStyle.Bold;
+                btnLabel.raycastTarget = false;
+                RectTransform btnLabelRT = btnLabelObj.GetComponent<RectTransform>();
+                btnLabelRT.anchorMin = Vector2.zero; btnLabelRT.anchorMax = Vector2.one;
+                btnLabelRT.offsetMin = Vector2.zero; btnLabelRT.offsetMax = Vector2.zero;
                 CollapseHandler ch = btnObj.AddComponent<CollapseHandler>();
                 ch.PanelRect = _panelRT;
                 ch.ContentObj = scrollObj; // Collapse the scroll view hierarchy
                 ch.ExpandedHeight = 400;
                 ch.CollapsedHeight = 35;
+                ch.Label = btnLabel;
                 btn.onClick.AddListener(ch.OnToggle);
 
                 _mainText.text = "Waiting for data...";
@@ -428,7 +476,8 @@ namespace TRBarPlugin
             try {
                 // --- 1. Tavern Open State ---
                 bool isOpen = false;
-                if (TavernManager.GOKBJFAMHMJ != null)
+                TavernManager tavernManager = BarReflection.FindSingleton<TavernManager>();
+                if (tavernManager != null)
                 {
                     if (_tavernOpenField == null)
                     {
@@ -437,7 +486,7 @@ namespace TRBarPlugin
 
                     if (_tavernOpenField != null)
                     {
-                        isOpen = (bool)_tavernOpenField.GetValue(TavernManager.GOKBJFAMHMJ);
+                        isOpen = (bool)_tavernOpenField.GetValue(tavernManager);
                     }
                 }
 
@@ -763,6 +812,7 @@ namespace TRBarPlugin
         public float ExpandedHeight;
         public float CollapsedHeight;
         public bool IsCollapsed = false;
+        public Text Label;
         
         public void OnToggle()
         {
@@ -773,6 +823,7 @@ namespace TRBarPlugin
             if (ContentObj) {
                 ContentObj.SetActive(!IsCollapsed);
             }
+            if (Label != null) Label.text = IsCollapsed ? "+" : "-";
         }
     }
 }
