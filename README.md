@@ -4,102 +4,96 @@
 [![Validate Code](https://github.com/lolaiur/TRTracker/actions/workflows/validate.yml/badge.svg)](https://github.com/lolaiur/TRTracker/actions/workflows/validate.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A collection of BepInEx plugins that enhance gameplay in Traveler's Rest.
+A set of BepInEx plugins for Traveler's Rest: live tavern stats, barrel and bar panels, gameplay cheats, and automated food and drink loading.
 
-## Supported game version 0.7.5.10
-
-
-<img width="1418" height="643" alt="image" src="https://github.com/user-attachments/assets/10f860d0-ab79-4a52-a585-ec54647c22ab" />
+## Supported game version: 0.7.5.3
 
 
-The mod comes in the three DLLs listed below. Each can be installed individually or all together. 
+<img width="2557" height="972" alt="image" src="https://github.com/user-attachments/assets/3ab57655-5fba-4b39-a70c-d407a53b087f" />
+
+
+Five DLLs are included. Each one works on its own, or you can install all of them. See [CHANGELOG.md](CHANGELOG.md) for per-mod version history.
 
 
 ## Mods Included
 
-### 🎯 TRTracker
-Gameplay tracking and statistics system for monitoring your tavern's performance.
+Each panel opens and closes with the key shown next to it.
 
-### 🍺 TRBarrels 
-Enhanced barrel management and tracking features.
+### 🎯 TRTracker (F1)
+Live tavern stats: money earned per minute and per session, profit, time open, heat, dirt, comfort, and reputation progress.
 
-### 📊 TRBar 
-Improved bar UI with additional functionality.
+### 🍺 TRBarrels (F2)
+Tracks aging barrels and shows aging progress and ready drinks across all of them.
+
+### 📊 TRBar (F3)
+Extra bar panel showing the drinks on tap, current stock, and flow rates.
+
+### 🍔 TRStats (F4)
+Cheats and gameplay tweaks: player speed, customer capacity, price modifiers, employee work avoidance, infinite coal and water, crop watering and instant-grow tools, and one-click animal water filling.
+
+### 🔄 TRAutoloader (F5)
+Keeps the bar menu stocked and tops off beer taps, kegs, and bar barrels from a loader container you assign. Each dispenser keeps the drink it already holds (it never mixes drinks, so put the drink you want in a dispenser once and it stays topped off). It has an on/off toggle, a configurable refill interval, and a rolling action feed in the panel.
 
 ## Installation
 
 ### Prerequisites
 
-You need BepInEx 5.x (64-bit) installed first.
+Install BepInEx 5.x (64-bit) first.
 
 #### Installing BepInEx 5.x (64-bit)
 
-1. Download **BepInEx 5.4.23.4 x64** from [BepInEx Releases](https://github.com/BepInEx/BepInEx/releases/tag/v5.4.23.4)
-   - Get the file: `BepInEx_win_x64_5.4.23.4.zip`
-   - ⚠️ **Important:** Use the x64 (64-bit) version, not x86
-
-2. Extract the ZIP file to your Traveler's Rest game folder:
-   ```
-   Steam/steamapps/common/Travellers Rest/
-   ```
-   The folder structure should look like:
+1. Download **BepInEx 5.4.23.4 x64** from [BepInEx Releases](https://github.com/BepInEx/BepInEx/releases/tag/v5.4.23.4). Get `BepInEx_win_x64_5.4.23.4.zip`. Use the x64 (64-bit) build, not x86.
+2. Extract the ZIP into your Traveler's Rest folder. On Steam the game files live under a `Windows` subfolder, so the layout looks like:
    ```
    Travellers Rest/
-   ├── BepInEx/
-   │   ├── core/
-   │   ├── plugins/  <- Mods go here
-   │   └── config/
-   ├── doorstop_config.ini
-   ├── winhttp.dll
-   └── TravellersRest.exe
+   └── Windows/
+       ├── BepInEx/
+       │   ├── core/
+       │   ├── plugins/   <- Mods go here
+       │   └── config/
+       ├── doorstop_config.ini
+       ├── winhttp.dll
+       └── TravellersRest.exe
    ```
+3. Run the game once to initialize BepInEx (a console window will appear), then close it.
 
-3. Run the game once to initialize BepInEx (you'll see a console window)
-4. Close the game - BepInEx is now installed!
+#### Installing the mods
 
-#### Installing TRTracker Mods
-
-1. Download the latest release from [Releases](https://github.com/lolaiur/TRTracker/releases)
-2. Extract `TRTracker-vX.X.X.zip`
-3. Copy all `.dll` files to:
-   ```
-   Travellers Rest/BepInEx/plugins/
-   ```
-4. Launch the game
+1. Download the latest release from [Releases](https://github.com/lolaiur/TRTracker/releases).
+2. Extract `TRTracker-vX.X.X.zip`.
+3. Copy the `.dll` files into `Travellers Rest/Windows/BepInEx/plugins/`.
+4. Launch the game. Open the panels with F1 through F5.
 
 ## Requirements
 
-- Traveler's Rest (Steam version)
-- BepInEx 5.4.23.2 x64 or newer ([Download](https://github.com/BepInEx/BepInEx/releases))
+- Traveler's Rest (Steam)
+- BepInEx 5.4.23.4 x64 or newer ([Download](https://github.com/BepInEx/BepInEx/releases))
 
-## Source Code & Transparency
+## Source Code
 
-All source code is available in this repository for review:
+All source is in this repository:
 
 - `Plugins/TRTrackerPlugin/TRTrackerPlugin.cs`
 - `Plugins/TRBarPlugin/TRBarPlugin.cs`
 - `Plugins/TRBarrelsPlugin/TRBarrelsPlugin.cs`
+- `Plugins/TRStatsPlugin/TRStatsPlugin.cs` and `Patches.cs`
+- `Plugins/TRAutoloaderPlugin/TRAutoloaderPlugin.cs`
 
-The pre-built DLLs in releases are compiled from this exact source code. Version numbers in the source files match the release versions for verification.
+The release DLLs are built from this source. The version string in each plugin matches its release version.
 
 ## Building Locally
 
-These mods require references to game assemblies to compile. If you own the game and want to build from source:
+These mods reference game assemblies, so you need the game installed to compile them.
 
 ### Prerequisites
 - .NET Framework 4.x or Mono
-- C# Compiler (Visual Studio, Rider, or `csc.exe`)
-- Traveler's Rest installed
-- BepInEx installed in your game directory
+- A C# compiler (Visual Studio, Rider, or `csc.exe`)
+- Traveler's Rest installed with BepInEx
 
 ### Build Steps
 
-1. Locate your game's managed assemblies:
-   ```
-   Travellers Rest/Travellers Rest_Data/Managed/
-   ```
-
-2. Compile each plugin (example for TRTracker):
+1. Find the managed assemblies at `Travellers Rest/Windows/TravellersRest_Data/Managed/`.
+2. Compile each plugin. Example for TRTracker:
    ```bash
    csc /t:library /out:TRTracker.dll \
        /r:"path/to/BepInEx/core/BepInEx.dll" \
@@ -110,38 +104,30 @@ These mods require references to game assemblies to compile. If you own the game
        /r:"path/to/Managed/UnityEngine.UI.dll" \
        Plugins/TRTrackerPlugin/TRTrackerPlugin.cs
    ```
-
-3. Or use the included PowerShell script (Windows):
+3. Or run the included PowerShell script on Windows. It locates the game install, compiles every plugin, and copies the DLLs into `BepInEx/plugins/`:
    ```powershell
-   # Edit paths in build_all_mods.ps1 first
    .\build_all_mods.ps1
    ```
 
+`scripts/audit-obfuscation.ps1` checks that every game member the plugins use still exists in your installed `Assembly-CSharp.dll`. Run it after a game update to catch obfuscation breaks.
+
 ## Development
 
-### Workflow
+GitHub Actions handle validation, security scanning, and releases:
 
-This repository uses GitHub Actions for validation, security, and releases:
+- **CodeQL Security Scan** runs on every push/PR and weekly.
+- **Validate Code** runs on every push/PR to confirm source files and DLLs are present and versions match.
+- **Create Release** is a manual workflow for tagged releases.
 
-- **CodeQL Security Scan** - Runs on every push/PR and weekly to detect security vulnerabilities
-- **Validate Code** - Runs on every push/PR to verify source files and DLLs exist
-- **Create Release** - Manual workflow to create tagged releases
-
-Security scanning results are visible in the [Security tab](https://github.com/lolaiur/TRTracker/security/code-scanning).
-
-## License
-
-MIT License - See LICENSE file for details
+Security scan results are in the [Security tab](https://github.com/lolaiur/TRTracker/security/code-scanning).
 
 ## Contributing
 
-Contributions welcome! Please:
+Pull requests are welcome. Fork the repo, work on a feature branch, and test your changes in-game before opening a PR.
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly with the game
-5. Submit a pull request
+## License
+
+MIT. See the [LICENSE](LICENSE) file.
 
 ## Support
 
@@ -150,11 +136,4 @@ Contributions welcome! Please:
 
 ## Credits
 
-Created by lolaiur for the Traveler's Rest modding community.
-
-Built with [BepInEx](https://github.com/BepInEx/BepInEx) and [HarmonyX](https://github.com/BepInEx/HarmonyX).
-
-
-
-
-
+Created by lolaiur for the Traveler's Rest modding community. Built with [BepInEx](https://github.com/BepInEx/BepInEx) and [HarmonyX](https://github.com/BepInEx/HarmonyX).
