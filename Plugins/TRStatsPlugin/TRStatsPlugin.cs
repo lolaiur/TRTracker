@@ -39,8 +39,8 @@ namespace TRStats
             Directory.CreateDirectory(logDir);
             LogPath = Path.Combine(logDir, "trstats_debug.txt");
             try { File.Delete(LogPath); } catch { }
-            File.WriteAllText(LogPath, "TRStats 1.3.3\n");
-            Logger.LogInfo("TRStats 1.3.3");
+            File.WriteAllText(LogPath, "TRStats 1.3.4\n");
+            Logger.LogInfo("TRStats 1.3.4");
 
             // Initialize config
             PlayerSpeedMultiplier = Config.Bind("Player", "SpeedMultiplier", 1.0f,
@@ -295,7 +295,7 @@ namespace TRStats
                 hTitle.transform.SetParent(header.transform, false);
                 Text ht = hTitle.AddComponent<Text>();
                 ht.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-                ht.text = "TR CHEATS 1.3.3 (F4)";
+                ht.text = "TR CHEATS 1.3.4 (F4)";
                 ht.alignment = TextAnchor.MiddleCenter;
                 ht.color = new Color(1f, 0.8f, 0.4f);
                 ht.fontSize = 14;
@@ -798,24 +798,65 @@ namespace TRStats
         {
             try {
                 int water = 0;
+                // Standard water bowls (cows, sheep, pigs, and chickens on a standard water feeder).
+                // FindObjectsOfType returns an empty array when none exist, so a farm with only hen
+                // houses (or no animals at all) is handled gracefully.
                 AnimalFeederWater[] waters = FindObjectsOfType<AnimalFeederWater>();
                 foreach (AnimalFeederWater feeder in waters)
                 {
                     if (feeder == null) continue;
                     try {
-                        // FillFeeder clamps to the feeder's maxAmount for its current level, so a large
-                        // amount tops it off. This fills the water bowls for cows, sheep, pigs, and
-                        // chickens that use a standard water feeder.
+                        // FillFeeder clamps to the feeder's maxAmount for its current level, so a
+                        // large amount tops it off. The fill happens before the UI/online calls, so
+                        // even if those throw, the water is still set.
                         feeder.FillFeeder(1, 9999);
                         water++;
                     } catch (Exception ex) {
-                        File.AppendAllText(Plugin.LogPath, "CareForAnimals feeder error: " + ex.Message + "\n");
+                        File.AppendAllText(Plugin.LogPath, "CareForAnimals water feeder error: " + ex.Message + "\n");
                     }
                 }
-                File.AppendAllText(Plugin.LogPath, "Care for animals: filled " + water + " water feeders\n");
+
+                // Hen-house water feeders. They have no public FillFeeder, so set currentAmount to the
+                // max for the feeder's level and refresh the sprite, mirroring the game's own fill.
+                int henWater = 0;
+                AnimalFeederWaterHenHouse[] henHouses = FindObjectsOfType<AnimalFeederWaterHenHouse>();
+                foreach (AnimalFeederWaterHenHouse feeder in henHouses)
+                {
+                    if (feeder == null) continue;
+                    try {
+                        int level = GetFeederLevel(feeder);
+                        int[] maxAmount = feeder.maxAmount;
+                        int max = (maxAmount != null && level >= 0 && level < maxAmount.Length) ? maxAmount[level] : 0;
+                        if (max > 0) {
+                            feeder.currentAmount = max;
+                            if (feeder.farmBuilding != null) {
+                                try { feeder.farmBuilding.UpdateAnimalsState(); } catch { }
+                            }
+                            feeder.UpdateSprite();
+                            henWater++;
+                        }
+                    } catch (Exception ex) {
+                        File.AppendAllText(Plugin.LogPath, "CareForAnimals hen-house error: " + ex.Message + "\n");
+                    }
+                }
+
+                File.AppendAllText(Plugin.LogPath, "Care for animals: filled " + water + " water feeders and " + henWater + " hen-house water feeders\n");
             } catch (Exception ex) {
                 File.AppendAllText(Plugin.LogPath, "CareForAnimals Error: " + ex.Message + "\n");
             }
+        }
+
+        private static FieldInfo _feederLevelField;
+        private static int GetFeederLevel(AnimalFeeder feeder)
+        {
+            if (feeder == null) return 0;
+            try {
+                if (_feederLevelField == null) {
+                    _feederLevelField = typeof(AnimalFeeder).GetField("_level", BindingFlags.NonPublic | BindingFlags.Instance);
+                }
+                if (_feederLevelField != null) return (int)_feederLevelField.GetValue(feeder);
+            } catch { }
+            return 0;
         }
 
         void InstaGrowAllCrops()
@@ -1126,6 +1167,6 @@ namespace TRStats
     {
         public const string PLUGIN_GUID = "com.trstats.mod";
         public const string PLUGIN_NAME = "TR Stats";
-        public const string PLUGIN_VERSION = "1.3.3";
+        public const string PLUGIN_VERSION = "1.3.4";
     }
 }

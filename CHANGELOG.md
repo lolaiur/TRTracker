@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-07-10 (3)
+
+### TRStats 1.3.4
+
+- The "Fill Animal Water" button now also tops off hen-house water feeders (AnimalFeederWaterHenHouse), which have no public fill method. It sets currentAmount to the max for the feeder's level and refreshes the sprite. Standard water bowls and hen houses are both handled with per-feeder error guards, so a farm with only one type (or neither) is fine.
+
 ## 2026-07-10 (2)
 
 ### TRStats 1.3.3
