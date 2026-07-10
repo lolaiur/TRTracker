@@ -39,8 +39,8 @@ namespace TRStats
             Directory.CreateDirectory(logDir);
             LogPath = Path.Combine(logDir, "trstats_debug.txt");
             try { File.Delete(LogPath); } catch { }
-            File.WriteAllText(LogPath, "TRStats 1.3.2\n");
-            Logger.LogInfo("TRStats 1.3.2");
+            File.WriteAllText(LogPath, "TRStats 1.3.3\n");
+            Logger.LogInfo("TRStats 1.3.3");
 
             // Initialize config
             PlayerSpeedMultiplier = Config.Bind("Player", "SpeedMultiplier", 1.0f,
@@ -295,7 +295,7 @@ namespace TRStats
                 hTitle.transform.SetParent(header.transform, false);
                 Text ht = hTitle.AddComponent<Text>();
                 ht.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-                ht.text = "TR CHEATS 1.3.2 (F4)";
+                ht.text = "TR CHEATS 1.3.3 (F4)";
                 ht.alignment = TextAnchor.MiddleCenter;
                 ht.color = new Color(1f, 0.8f, 0.4f);
                 ht.fontSize = 14;
@@ -461,6 +461,7 @@ namespace TRStats
                 yPos -= 10;
                 yPos = CreateButton(_contentObj.transform, "Water All Crops", yPos, delegate { WaterAllCrops(); });
                 yPos = CreateButton(_contentObj.transform, "Insta-Grow All Crops", yPos, delegate { InstaGrowAllCrops(); });
+                yPos = CreateButton(_contentObj.transform, "Fill Animal Water", yPos, delegate { CareForAnimals(); });
 
                 yPos -= 5;
                 yPos = CreateButton(_contentObj.transform, "Apply Speed", yPos, delegate { ApplyChanges(); });
@@ -793,6 +794,30 @@ namespace TRStats
             }
         }
 
+        void CareForAnimals()
+        {
+            try {
+                int water = 0;
+                AnimalFeederWater[] waters = FindObjectsOfType<AnimalFeederWater>();
+                foreach (AnimalFeederWater feeder in waters)
+                {
+                    if (feeder == null) continue;
+                    try {
+                        // FillFeeder clamps to the feeder's maxAmount for its current level, so a large
+                        // amount tops it off. This fills the water bowls for cows, sheep, pigs, and
+                        // chickens that use a standard water feeder.
+                        feeder.FillFeeder(1, 9999);
+                        water++;
+                    } catch (Exception ex) {
+                        File.AppendAllText(Plugin.LogPath, "CareForAnimals feeder error: " + ex.Message + "\n");
+                    }
+                }
+                File.AppendAllText(Plugin.LogPath, "Care for animals: filled " + water + " water feeders\n");
+            } catch (Exception ex) {
+                File.AppendAllText(Plugin.LogPath, "CareForAnimals Error: " + ex.Message + "\n");
+            }
+        }
+
         void InstaGrowAllCrops()
         {
             try {
@@ -1101,6 +1126,6 @@ namespace TRStats
     {
         public const string PLUGIN_GUID = "com.trstats.mod";
         public const string PLUGIN_NAME = "TR Stats";
-        public const string PLUGIN_VERSION = "1.3.2";
+        public const string PLUGIN_VERSION = "1.3.3";
     }
 }

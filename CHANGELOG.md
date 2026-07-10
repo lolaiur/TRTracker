@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-07-10 (2)
+
+### TRStats 1.3.3
+
+- Added a "Fill Animal Water" cheat button to the F4 panel. It tops off every animal water feeder (AnimalFeederWater) to its max in one click, covering cows, sheep, pigs, and chickens that use a standard water bowl. Food feeders and hen-house water are not yet covered (they need per-animal food items and a separate fill path).
+
 ## 2026-07-10
 
 ### TRStats 1.3.2
