@@ -271,6 +271,8 @@ $targets = @(
     [pscustomobject]@{ Plugin = "TRAutoloader"; Check = "Placeable.guidString"; Found = Test-MemberByName -TypeName "Placeable" -MemberName "guidString" -MemberKind "Field" },
     [pscustomobject]@{ Plugin = "TRAutoloader"; Check = "Placeable.GetCurrentTavernZone"; Found = Test-MemberByName -TypeName "Placeable" -MemberName "GetCurrentTavernZone" -MemberKind "Method" },
     [pscustomobject]@{ Plugin = "TRAutoloader"; Check = "ItemContainer.bigContainer"; Found = Test-MemberByName -TypeName "ItemContainer" -MemberName "bigContainer" -MemberKind "Field" },
+    [pscustomobject]@{ Plugin = "TRAutoloader"; Check = "Food.halloweenFood"; Found = Test-MemberByName -TypeName "Food" -MemberName "halloweenFood" -MemberKind "Field" },
+    [pscustomobject]@{ Plugin = "TRAutoloader"; Check = "HalloweenEvent type"; Found = ($null -ne $assembly.GetType("HalloweenEvent")) },
     [pscustomobject]@{ Plugin = "TRAutoloader"; Check = "DrinkDispenser container-updated field"; Found = Test-MemberByName -TypeName "DrinkDispenser" -MemberName "DrinkDispenserContainerUpdated" -MemberKind "Field" }
 )
 

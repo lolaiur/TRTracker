@@ -806,6 +806,19 @@ namespace TRAutoloaderPlugin
                 currentCounts[itemId] = currentCount + 1;
             }
 
+            // Smart-fill: stock any empty bar-menu slots with a priority-chosen food (special event
+            // item first, then highest revenue). TryMoveOneItem fails once the menu is full, which
+            // stops the loop.
+            if (moved < MaxFoodMovesPerTick) {
+                bool halloweenActive = IsHalloweenActive();
+                while (moved < MaxFoodMovesPerTick) {
+                    Slot source = PickBestSourceSlot(loader, false, halloweenActive);
+                    if (source == null) break;
+                    if (!TryMoveOneItem(loader, barInventory, source)) break;
+                    moved++;
+                }
+            }
+
             if (moved == 0) {
                 if (transferFailed) {
                     LogFoodIdle("Food tick idle: matching food source was found, but transfer failed.");
@@ -907,6 +920,24 @@ namespace TRAutoloaderPlugin
                     if (movedNow <= 0 && barrel.slots.Length > 1 && unitsMoved < MaxDrinkUnitsPerTick) {
                         unitsMoved += FillDrinkTarget(loader, barrel, barrel.slots[1], activeDrinkCounts, MaxDrinkUnitsPerTick - unitsMoved, "bar barrel slot 1");
                     }
+                }
+            }
+
+            // Smart-fill: top off any still-empty dispenser/keg slots with a priority-chosen drink
+            // (special event item first, then highest revenue). Only genuinely empty target slots are
+            // touched, so an already-filled dispenser is never given a different drink.
+            if (unitsMoved < MaxDrinkUnitsPerTick && dispensers != null) {
+                bool halloweenActive = IsHalloweenActive();
+                foreach (DrinkDispenser dispenser in dispensers) {
+                    if (unitsMoved >= MaxDrinkUnitsPerTick) break;
+                    if (!IsDrinkTargetUsable(dispenser)) continue;
+                    Slot slot = GetDispenserSlot(dispenser);
+                    if (slot == null || slot.itemInstance != null) continue; // only empty target slots
+                    Slot source = PickBestSourceSlot(loader, true, halloweenActive);
+                    if (source == null) break;
+                    int filled = TryMoveItemUnits(loader, dispenser, slot, source, MaxDrinkUnitsPerTick - unitsMoved, true);
+                    if (filled > 0) unitsMoved += filled;
+                    else break; // best source did not fit; stop rather than retry the same failing source
                 }
             }
 
@@ -1593,6 +1624,50 @@ namespace TRAutoloaderPlugin
             catch {
                 return -1;
             }
+        }
+
+        private static float _nextHalloweenCheckTime;
+        private static bool _cachedHalloweenActive;
+        private static bool IsHalloweenActive()
+        {
+            if (Time.unscaledTime < _nextHalloweenCheckTime) return _cachedHalloweenActive;
+            _nextHalloweenCheckTime = Time.unscaledTime + 10f;
+            _cachedHalloweenActive = UnityEngine.Object.FindObjectOfType<HalloweenEvent>() != null;
+            return _cachedHalloweenActive;
+        }
+
+        private static bool IsSpecialItem(ItemInstance instance)
+        {
+            Food food = GetInstanceItem(instance) as Food;
+            return food != null && food.halloweenFood;
+        }
+
+        // Pick the best source slot from the loader to fill an EMPTY target, by priority: event-special
+        // items first (halloween food while halloween is active), then highest revenue. `drinks` selects
+        // loose-drink sources; otherwise food (FoodInstance) sources.
+        private static Slot PickBestSourceSlot(ItemContainer loader, bool drinks, bool halloweenActive)
+        {
+            if (loader == null || loader.slots == null) return null;
+
+            Slot best = null;
+            long bestScore = long.MinValue;
+
+            foreach (Slot slot in loader.slots)
+            {
+                if (slot == null || slot.itemInstance == null || slot.Stack <= 0) continue;
+                if (drinks ? !IsLooseDrinkInstance(slot.itemInstance) : !(slot.itemInstance is FoodInstance)) continue;
+
+                bool special = halloweenActive && IsSpecialItem(slot.itemInstance);
+                int revenue = GetInstanceValue(slot.itemInstance);
+                long score = (special ? 1000000L : 0L) + revenue;
+                if (best == null || score > bestScore)
+                {
+                    best = slot;
+                    bestScore = score;
+                }
+            }
+
+            return best;
         }
 
         private static int GetInstanceValue(ItemInstance instance)
