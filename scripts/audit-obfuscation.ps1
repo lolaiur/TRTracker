@@ -257,6 +257,8 @@ $targets = @(
     [pscustomobject]@{ Plugin = "TRStats"; Check = "AnimalFeederWater.FillFeeder"; Found = Test-MemberByName -TypeName "AnimalFeederWater" -MemberName "FillFeeder" -MemberKind "Method" },
     [pscustomobject]@{ Plugin = "TRStats"; Check = "AnimalFeederWaterHenHouse.currentAmount"; Found = Test-MemberByName -TypeName "AnimalFeederWaterHenHouse" -MemberName "currentAmount" -MemberKind "Field" },
     [pscustomobject]@{ Plugin = "TRStats"; Check = "AnimalFeeder.maxAmount"; Found = Test-MemberByName -TypeName "AnimalFeeder" -MemberName "maxAmount" -MemberKind "Field" },
+    [pscustomobject]@{ Plugin = "TRStats"; Check = "Container.allowedItemsList"; Found = Test-MemberByName -TypeName "Container" -MemberName "allowedItemsList" -MemberKind "Field" },
+    [pscustomobject]@{ Plugin = "TRStats"; Check = "Container.GetNumberOfItems"; Found = Test-MemberByName -TypeName "Container" -MemberName "GetNumberOfItems" -MemberKind "Method" },
     [pscustomobject]@{ Plugin = "TRStats"; Check = "Item.nameId"; Found = Test-MemberByName -TypeName "Item" -MemberName "nameId" -MemberKind "Field" },
     [pscustomobject]@{ Plugin = "TRBarrels"; Check = "AgingBarrel.inputSlot"; Found = Test-MemberByName -TypeName "AgingBarrel" -MemberName "inputSlot" -MemberKind "Field" },
     [pscustomobject]@{ Plugin = "TRBarrels"; Check = "AgingBarrel.timer"; Found = Test-MemberByName -TypeName "AgingBarrel" -MemberName "timer" -MemberKind "Field" },

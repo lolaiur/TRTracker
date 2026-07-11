@@ -461,7 +461,7 @@ namespace TRStats
                 yPos -= 10;
                 yPos = CreateButton(_contentObj.transform, "Water All Crops", yPos, delegate { WaterAllCrops(); });
                 yPos = CreateButton(_contentObj.transform, "Insta-Grow All Crops", yPos, delegate { InstaGrowAllCrops(); });
-                yPos = CreateButton(_contentObj.transform, "Fill Animal Water", yPos, delegate { CareForAnimals(); });
+                yPos = CreateButton(_contentObj.transform, "Care for Animals", yPos, delegate { CareForAnimals(); });
 
                 yPos -= 5;
                 yPos = CreateButton(_contentObj.transform, "Apply Speed", yPos, delegate { ApplyChanges(); });
@@ -840,7 +840,42 @@ namespace TRStats
                     }
                 }
 
-                File.AppendAllText(Plugin.LogPath, "Care for animals: filled " + water + " water feeders and " + henWater + " hen-house water feeders\n");
+                // Food troughs (AnimalFeederFood). No public fill method, so add the feeder's allowed
+                // food to its container up to the max for the feeder's level.
+                int food = 0;
+                AnimalFeederFood[] foodFeeders = FindObjectsOfType<AnimalFeederFood>();
+                foreach (AnimalFeederFood feeder in foodFeeders)
+                {
+                    if (feeder == null) continue;
+                    try {
+                        Container container = feeder.container;
+                        if (container == null) continue;
+                        Item[] allowed = container.allowedItemsList;
+                        if (allowed == null || allowed.Length == 0) continue;
+                        Item foodItem = allowed[0];
+                        int level = GetFeederLevel(feeder);
+                        int[] maxAmount = feeder.maxAmount;
+                        int max = (maxAmount != null && level >= 0 && level < maxAmount.Length) ? maxAmount[level] : 0;
+                        int current = container.GetNumberOfItems();
+                        int need = max > current ? max - current : 0;
+                        int added = 0;
+                        while (added < need) {
+                            ItemInstance foodInstance = CreateItemInstance(foodItem);
+                            if (foodInstance == null) break;
+                            Slot addedSlot = container.AddItemInstance(1, foodInstance, false, false);
+                            if (addedSlot == null) break; // rejected or full
+                            added++;
+                        }
+                        if (added > 0) {
+                            if (feeder.farmBuilding != null) { try { feeder.farmBuilding.UpdateAnimalsState(); } catch { } }
+                            food++;
+                        }
+                    } catch (Exception ex) {
+                        File.AppendAllText(Plugin.LogPath, "CareForAnimals food feeder error: " + ex.Message + "\n");
+                    }
+                }
+
+                File.AppendAllText(Plugin.LogPath, "Care for animals: filled " + water + " water feeders, " + henWater + " hen-house water feeders, and " + food + " food troughs\n");
             } catch (Exception ex) {
                 File.AppendAllText(Plugin.LogPath, "CareForAnimals Error: " + ex.Message + "\n");
             }
@@ -857,6 +892,29 @@ namespace TRStats
                 if (_feederLevelField != null) return (int)_feederLevelField.GetValue(feeder);
             } catch { }
             return 0;
+        }
+
+        private static MethodInfo _itemInstanceFactory;
+        // Create a fresh ItemInstance from an Item via the game's item factory (a public no-arg
+        // method on Item returning an ItemInstance, e.g. the obfuscated JMDALJBNFML). Found by
+        // signature so it survives obfuscation renames.
+        private static ItemInstance CreateItemInstance(Item item)
+        {
+            if (item == null) return null;
+            try {
+                if (_itemInstanceFactory == null) {
+                    foreach (MethodInfo m in typeof(Item).GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)) {
+                        if (m.GetParameters().Length != 0) continue;
+                        if (!typeof(ItemInstance).IsAssignableFrom(m.ReturnType)) continue;
+                        _itemInstanceFactory = m;
+                        break;
+                    }
+                }
+                if (_itemInstanceFactory == null) return null;
+                return _itemInstanceFactory.Invoke(item, null) as ItemInstance;
+            } catch {
+                return null;
+            }
         }
 
         void InstaGrowAllCrops()

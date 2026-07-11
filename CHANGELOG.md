@@ -7,6 +7,9 @@ In-progress major update on a local branch; not yet shipped.
 ### Cleanup
 - TRAutoloader: removed the dead "observed drink cap" cluster (`_observedDrinkCaps`, `RememberObservedDrinkCap`, `GetObservedDrinkCap`). `GetDrinkTargetMax` stopped reading it in 1.0.9, so the store was being written but never consumed.
 
+### Cheats
+- "Fill Animal Water" is now "Care for Animals" and also fills food troughs (AnimalFeederFood) up to each feeder's max using its allowed food. A reflection-based item factory (finds the no-arg ItemInstance method on Item) is used so the obfuscated factory name does not matter, and each feeder is guarded so a bad one cannot abort the rest. AnimalFeederChicken feeders are not yet covered.
+
 ## 2026-07-10 (3)
 
 ### TRStats 1.3.4
