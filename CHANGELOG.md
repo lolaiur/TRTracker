@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.0.0 (unreleased)
+
+In-progress major update on a local branch; not yet shipped.
+
+### Cleanup
+- TRAutoloader: removed the dead "observed drink cap" cluster (`_observedDrinkCaps`, `RememberObservedDrinkCap`, `GetObservedDrinkCap`). `GetDrinkTargetMax` stopped reading it in 1.0.9, so the store was being written but never consumed.
+
 ## 2026-07-10 (3)
 
 ### TRStats 1.3.4

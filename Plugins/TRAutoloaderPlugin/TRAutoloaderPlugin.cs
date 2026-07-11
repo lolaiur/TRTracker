@@ -600,7 +600,6 @@ namespace TRAutoloaderPlugin
         private static DrinkDispenser[] _cachedDispensers = new DrinkDispenser[0];
         private static BanquetBarrel[] _cachedBanquetBarrels = new BanquetBarrel[0];
         private static TavernZonesManager _cachedZoneManager;
-        private static readonly Dictionary<long, int> _observedDrinkCaps = new Dictionary<long, int>();
         private static readonly HashSet<long> _drinkCompatibilityCache = new HashSet<long>();
         private static readonly Dictionary<long, float> _drinkRejectCooldowns = new Dictionary<long, float>();
         private static readonly Dictionary<string, MethodInfo> _itemCloneMethodCache = new Dictionary<string, MethodInfo>();
@@ -623,7 +622,6 @@ namespace TRAutoloaderPlugin
             _cachedDispensers = new DrinkDispenser[0];
             _cachedBanquetBarrels = new BanquetBarrel[0];
             _cachedZoneManager = null;
-            _observedDrinkCaps.Clear();
             _drinkCompatibilityCache.Clear();
             _drinkRejectCooldowns.Clear();
         }
@@ -638,7 +636,6 @@ namespace TRAutoloaderPlugin
             _nextDispenserScanTime = 0f;
             _nextFoodIdleLogTime = 0f;
             _nextDrinkIdleLogTime = 0f;
-            _observedDrinkCaps.Clear();
             _drinkCompatibilityCache.Clear();
             _drinkRejectCooldowns.Clear();
             _nextRunTime = string.Equals(sceneName, "Gameplay", StringComparison.Ordinal)
@@ -1236,7 +1233,6 @@ namespace TRAutoloaderPlugin
                         int cloneItemId = GetItemId(clone);
                         int currentAmount = GetDrinkAmount(targetSlot);
                         if (targetItemId > 0 && targetItemId == cloneItemId && currentAmount > 0) {
-                            RememberObservedDrinkCap(target, targetSlot.itemInstance, currentAmount);
                             return false;
                         }
                     }
@@ -1279,29 +1275,6 @@ namespace TRAutoloaderPlugin
             }
 
             return _cachedBanquetBarrels;
-        }
-
-        private static void RememberObservedDrinkCap(Container target, ItemInstance instance, int amount)
-        {
-            long key = GetDrinkCacheKey(target, instance);
-            if (key == 0L || amount <= 0) return;
-
-            int existing;
-            if (_observedDrinkCaps.TryGetValue(key, out existing) && existing > 0) {
-                _observedDrinkCaps[key] = Mathf.Min(existing, amount);
-                return;
-            }
-
-            _observedDrinkCaps[key] = amount;
-        }
-
-        private static int GetObservedDrinkCap(Container target, ItemInstance instance)
-        {
-            long key = GetDrinkCacheKey(target, instance);
-            if (key == 0L) return 0;
-
-            int amount;
-            return _observedDrinkCaps.TryGetValue(key, out amount) ? amount : 0;
         }
 
         private static long GetDrinkCacheKey(Container target, ItemInstance instance)
