@@ -10,6 +10,11 @@ In-progress major update on a local branch; not yet shipped.
 ### Cheats
 - "Fill Animal Water" is now "Care for Animals" and also fills food troughs (AnimalFeederFood) up to each feeder's max using its allowed food. A reflection-based item factory (finds the no-arg ItemInstance method on Item) is used so the obfuscated factory name does not matter, and each feeder is guarded so a bad one cannot abort the rest. AnimalFeederChicken feeders are not yet covered.
 
+### Bar tracker (TRBar)
+- Flow rate is now refill-tolerant: when a tap's quantity goes up (a refill by the autoloader or a restock), the baseline resyncs without zeroing the measured rate, so drinks still being served keep showing a flow instead of dropping to 0.
+- Added a food flow rate (per minute) shown next to each food's quantity, tracked the same refill-tolerant way.
+- Event-special items (halloween food while halloween is active) are highlighted in orange in both the taps and food lists.
+
 ### Autoloader
 - Smart-fill for empty slots. When a drink dispenser/keg target slot or a bar-menu food slot is empty, the loader now fills it by priority: event-special items first (halloween food while halloween is active), then the highest-revenue item from the loader. Non-empty dispensers and slots keep the "top off the same item, never mix" rule. Event-active is detected via the HalloweenEvent in-scene singleton (cached for 10s).
 
