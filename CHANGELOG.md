@@ -6,9 +6,11 @@ In-progress major update on a local branch; not yet shipped.
 
 ### Cleanup
 - TRAutoloader: removed the dead "observed drink cap" cluster (`_observedDrinkCaps`, `RememberObservedDrinkCap`, `GetObservedDrinkCap`). `GetDrinkTargetMax` stopped reading it in 1.0.9, so the store was being written but never consumed.
+- TRAutoloader: removed the dead `Reset()` method (never called; `NotifySceneLoaded` already does the same cache clears).
+- Compiler sweep across all mods confirmed no unused fields or locals remain.
 
 ### Cheats
-- "Fill Animal Water" is now "Care for Animals" and also fills food troughs (AnimalFeederFood) up to each feeder's max using its allowed food. A reflection-based item factory (finds the no-arg ItemInstance method on Item) is used so the obfuscated factory name does not matter, and each feeder is guarded so a bad one cannot abort the rest. AnimalFeederChicken feeders are not yet covered.
+- "Fill Animal Water" is now "Care for Animals" and also fills food troughs (AnimalFeederFood and AnimalFeederChicken) up to each feeder's max using its allowed food. A reflection-based item factory (finds the no-arg ItemInstance method on Item) is used so the obfuscated factory name does not matter, and each feeder is guarded so a bad one cannot abort the rest.
 
 ### Bar tracker (TRBar)
 - Flow rate is now refill-tolerant: when a tap's quantity goes up (a refill by the autoloader or a restock), the baseline resyncs without zeroing the measured rate, so drinks still being served keep showing a flow instead of dropping to 0.

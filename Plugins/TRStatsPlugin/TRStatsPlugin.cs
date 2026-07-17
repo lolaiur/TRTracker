@@ -840,11 +840,13 @@ namespace TRStats
                     }
                 }
 
-                // Food troughs (AnimalFeederFood). No public fill method, so add the feeder's allowed
-                // food to its container up to the max for the feeder's level.
+                // Food troughs (AnimalFeederFood and AnimalFeederChicken). No public fill method, so
+                // add each feeder's allowed food to its container up to the max for its level.
                 int food = 0;
-                AnimalFeederFood[] foodFeeders = FindObjectsOfType<AnimalFeederFood>();
-                foreach (AnimalFeederFood feeder in foodFeeders)
+                List<AnimalFeeder> foodFeeders = new List<AnimalFeeder>();
+                foreach (AnimalFeederFood ff in FindObjectsOfType<AnimalFeederFood>()) foodFeeders.Add(ff);
+                foreach (AnimalFeederChicken cf in FindObjectsOfType<AnimalFeederChicken>()) foodFeeders.Add(cf);
+                foreach (AnimalFeeder feeder in foodFeeders)
                 {
                     if (feeder == null) continue;
                     try {

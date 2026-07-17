@@ -613,19 +613,6 @@ namespace TRAutoloaderPlugin
         private static readonly MethodInfo PlaceableUniqueIdGetter = typeof(Placeable).GetMethod("get_uniqueId", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
         private static readonly PropertyInfo ItemContainerPlaceableProperty = AutoloaderReflection.FindInstancePropertyByType<ItemContainer, Placeable>();
 
-        public static void Reset()
-        {
-            _nextRunTime = 0f;
-            _nextDispenserScanTime = 0f;
-            _nextFoodIdleLogTime = 0f;
-            _nextDrinkIdleLogTime = 0f;
-            _cachedDispensers = new DrinkDispenser[0];
-            _cachedBanquetBarrels = new BanquetBarrel[0];
-            _cachedZoneManager = null;
-            _drinkCompatibilityCache.Clear();
-            _drinkRejectCooldowns.Clear();
-        }
-
         public static void NotifySceneLoaded(string sceneName)
         {
             _cachedFoodLoader = null;
