@@ -275,7 +275,11 @@ $targets = @(
     [pscustomobject]@{ Plugin = "TRAutoloader"; Check = "ItemContainer.bigContainer"; Found = Test-MemberByName -TypeName "ItemContainer" -MemberName "bigContainer" -MemberKind "Field" },
     [pscustomobject]@{ Plugin = "TRAutoloader"; Check = "Food.halloweenFood"; Found = Test-MemberByName -TypeName "Food" -MemberName "halloweenFood" -MemberKind "Field" },
     [pscustomobject]@{ Plugin = "TRAutoloader"; Check = "HalloweenEvent type"; Found = ($null -ne $assembly.GetType("HalloweenEvent")) },
-    [pscustomobject]@{ Plugin = "TRAutoloader"; Check = "DrinkDispenser container-updated field"; Found = Test-MemberByName -TypeName "DrinkDispenser" -MemberName "DrinkDispenserContainerUpdated" -MemberKind "Field" }
+    [pscustomobject]@{ Plugin = "TRAutoloader"; Check = "DrinkDispenser container-updated field"; Found = Test-MemberByName -TypeName "DrinkDispenser" -MemberName "DrinkDispenserContainerUpdated" -MemberKind "Field" },
+    [pscustomobject]@{ Plugin = "TRAutoloader"; Check = "OnlineManager.PlayingOnline"; Found = Test-MemberByName -TypeName "OnlineManager" -MemberName "PlayingOnline" -MemberKind "Method" },
+    [pscustomobject]@{ Plugin = "TRAutoloader"; Check = "OnlineManager.IsMasterClient"; Found = Test-MemberByName -TypeName "OnlineManager" -MemberName "IsMasterClient" -MemberKind "Method" },
+    [pscustomobject]@{ Plugin = "TRAutoloader"; Check = "OnlineSlotsManager.instance"; Found = Test-MemberByName -TypeName "OnlineSlotsManager" -MemberName "instance" -MemberKind "Field" },
+    [pscustomobject]@{ Plugin = "TRAutoloader"; Check = "OnlineSlotsManager.SendSlot"; Found = Test-MemberByName -TypeName "OnlineSlotsManager" -MemberName "SendSlot" -MemberKind "Method" }
 )
 
 Write-Host "Live assembly obfuscation audit" -ForegroundColor Cyan

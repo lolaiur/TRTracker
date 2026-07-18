@@ -675,6 +675,9 @@ namespace TRAutoloaderPlugin
         {
             try {
                 if (Plugin.AutoLoadEnabled != null && !Plugin.AutoLoadEnabled.Value) return;
+                // In multiplayer, only the host (master client) runs the loader so transfers happen
+                // once and propagate to the other player, instead of both clients duplicating them.
+                if (OnlineManager.PlayingOnline() && !OnlineManager.IsMasterClient()) return;
 
                 VerboseDrinkDebug = Plugin.VerboseDebug != null && Plugin.VerboseDebug.Value;
 
@@ -995,7 +998,7 @@ namespace TRAutoloaderPlugin
             if (candidateId <= 0) return 0;
 
             if (drinkSlot.itemInstance != null && currentAmount <= 0) {
-                Slot removedEmpty = target.RemoveItemInstance(drinkSlot.itemInstance, false);
+                Slot removedEmpty = target.RemoveItemInstance(drinkSlot.itemInstance, true);
                 if (removedEmpty == null) {
                     if (VerboseDrinkDebug) LogDrinkDebug("Failed to clear empty item from " + targetLabel + " at " + FormatPosition(target.transform.position) + ".");
                     return 0;
@@ -1024,6 +1027,10 @@ namespace TRAutoloaderPlugin
                     DescribeItemInstance(sourceSlot.itemInstance),
                     movedNow));
             }
+
+            // Direct slot writes (drink dispensers/kegs) bypass AddItemInstance, so sync the slot
+            // explicitly so the other player sees the fill in multiplayer.
+            if (movedNow > 0) SyncSlot(drinkSlot);
 
             return movedNow;
         }
@@ -1194,7 +1201,7 @@ namespace TRAutoloaderPlugin
                 return false;
             }
 
-            Slot removedSlot = source.RemoveItemInstance(sourceSlot.itemInstance, false);
+            Slot removedSlot = source.RemoveItemInstance(sourceSlot.itemInstance, true);
             if (removedSlot != null) {
                 NotifyDrinkTargetChanged(target);
                 return true;
@@ -1242,7 +1249,7 @@ namespace TRAutoloaderPlugin
             }
 
             bool isDrinkTarget = target is DrinkDispenser || target is BanquetBarrel;
-            Slot addedSlot = target.AddItemInstance(1, clone, true, false);
+            Slot addedSlot = target.AddItemInstance(1, clone, true, true);
             if (addedSlot == null) {
                 if (isDrinkTarget) {
                     Slot targetSlot = target.slots != null && target.slots.Length > 0 ? target.slots[0] : null;
@@ -1260,10 +1267,10 @@ namespace TRAutoloaderPlugin
                 return false;
             }
 
-            Slot removedSlot = source.RemoveItemInstance(sourceSlot.itemInstance, false);
+            Slot removedSlot = source.RemoveItemInstance(sourceSlot.itemInstance, true);
             if (removedSlot != null) return true;
 
-            target.RemoveItemInstance(clone, false);
+            target.RemoveItemInstance(clone, true);
             Log("Autoloader rollback: source removal failed for " + GetItemLabel(sourceSlot.itemInstance));
             return false;
         }
@@ -1293,6 +1300,14 @@ namespace TRAutoloaderPlugin
             }
 
             return _cachedBanquetBarrels;
+        }
+
+        // Push a slot's state to the other player in multiplayer (used after direct slot writes that
+        // bypass Container.AddItemInstance, which would otherwise sync itself).
+        private static void SyncSlot(Slot slot)
+        {
+            if (slot == null || !OnlineManager.PlayingOnline()) return;
+            try { OnlineSlotsManager.instance.SendSlot(slot); } catch { }
         }
 
         private static long GetDrinkCacheKey(Container target, ItemInstance instance)

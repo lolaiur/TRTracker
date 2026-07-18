@@ -22,6 +22,7 @@ In-progress major update on a local branch; not yet shipped.
 
 ### Autoloader
 - Smart-fill for empty slots. When a drink dispenser/keg target slot or a bar-menu food slot is empty, the loader now fills it by priority: event-special items first (halloween food while halloween is active), then the highest-revenue item from the loader. Non-empty dispensers and slots keep the "top off the same item, never mix" rule. Event-active is detected via the HalloweenEvent in-scene singleton (cached for 10s).
+- Multiplayer sync. In multiplayer the loader now runs only on the host (master client) and propagates its transfers to the other player: food/bar-menu moves use the container online flag, and direct drink-slot writes push via OnlineSlotsManager.SendSlot. Single-player is unchanged. Needs multiplayer testing.
 
 ## 2026-07-10 (3)
 
