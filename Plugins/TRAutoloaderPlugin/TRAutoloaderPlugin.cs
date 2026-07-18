@@ -8,6 +8,7 @@ using BepInEx.Configuration;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
+using TRShared;
 
 namespace TRAutoloaderPlugin
 {
@@ -2156,64 +2157,12 @@ namespace TRAutoloaderPlugin
         }
     }
 
-    public static class WindowLayerUtil
+    public static class PluginInfo
     {
-        public static void BringToFront(Component component)
-        {
-            if (component == null) return;
-
-            Canvas rootCanvas = component.GetComponentInParent<Canvas>();
-            if (rootCanvas != null && rootCanvas.isRootCanvas) {
-                rootCanvas.overrideSorting = true;
-                rootCanvas.sortingOrder = 1000 + (int)((DateTime.UtcNow.Ticks / TimeSpan.TicksPerMillisecond) % 100000);
-            }
-
-            RectTransform rect = component.GetComponent<RectTransform>();
-            if (rect != null) rect.SetAsLastSibling();
-        }
-    }
-
-    public class WindowPointerFocus : MonoBehaviour, IPointerDownHandler
-    {
-        public void OnPointerDown(PointerEventData data)
-        {
-            WindowLayerUtil.BringToFront(this);
-        }
-    }
-
-    public class WindowDragger : MonoBehaviour, IDragHandler, IPointerDownHandler
-    {
-        public RectTransform TargetRect;
-        public void OnPointerDown(PointerEventData data)
-        {
-            WindowLayerUtil.BringToFront(this);
-        }
-        public void OnDrag(PointerEventData data)
-        {
-            WindowLayerUtil.BringToFront(this);
-            if (TargetRect != null) TargetRect.anchoredPosition += data.delta;
-        }
-    }
-
-    public class CollapseHandler : MonoBehaviour
-    {
-        public RectTransform PanelRect;
-        public GameObject ContentObj;
-        public float ExpandedHeight;
-        public float CollapsedHeight;
-        public bool IsCollapsed = false;
-        public Text Label;
-
-        public void OnToggle()
-        {
-            IsCollapsed = !IsCollapsed;
-            if (PanelRect != null) {
-                PanelRect.sizeDelta = new Vector2(PanelRect.sizeDelta.x, IsCollapsed ? CollapsedHeight : ExpandedHeight);
-            }
-            if (ContentObj != null) {
-                ContentObj.SetActive(!IsCollapsed);
-            }
-            if (Label != null) Label.text = IsCollapsed ? "+" : "-";
-        }
+        public const string PLUGIN_GUID = "com.lolaiur.trautoloader";
+        public const string PLUGIN_NAME = "TR Autoloader";
+        public const string PLUGIN_VERSION = "1.2.0";
     }
 }
+
+
