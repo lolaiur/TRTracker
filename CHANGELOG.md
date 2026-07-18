@@ -9,6 +9,9 @@ In-progress major update on a local branch; not yet shipped.
 - TRAutoloader: removed the dead `Reset()` method (never called; `NotifySceneLoaded` already does the same cache clears).
 - Compiler sweep across all mods confirmed no unused fields or locals remain.
 
+### Performance
+- TRTracker: the 0.25s refresh no longer re-resolves its reflected members every tick. The WorldTime type lookup and the TavernReputation level, TavernManager heat, and TavernManager dirt property lookups (each of which iterated every member of the type via FindInstancePropertyByType) are now cached after first use, removing that iteration from the hot path.
+
 ### Cheats
 - "Fill Animal Water" is now "Care for Animals" and also fills food troughs (AnimalFeederFood and AnimalFeederChicken) up to each feeder's max using its allowed food. A reflection-based item factory (finds the no-arg ItemInstance method on Item) is used so the obfuscated factory name does not matter, and each feeder is guarded so a bad one cannot abort the rest.
 

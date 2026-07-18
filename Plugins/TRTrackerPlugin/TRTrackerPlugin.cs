@@ -768,6 +768,11 @@ namespace TRTracker
     public static class TRTrackerPatch {
         private static DateTime lastUIUpdate = DateTime.MinValue;
         private const double UIUpdateIntervalSeconds = 0.25;
+        // Cached reflected members (stable per game version) so the 0.25s refresh does not re-resolve
+        // them every tick. FindInstancePropertyByType iterates every member of a type, which is the
+        // expensive part; caching it removes that from the hot path.
+        private static Type _worldTimeType;
+        private static PropertyInfo _levelProp, _heatProp, _dirtProp;
         public static void ResetDump() {}
 
         public static void Refresh() {
@@ -804,7 +809,7 @@ namespace TRTracker
                  if (tm == null) return;
 
                  // Date
-                 Type wt=Type.GetType("WorldTime, Assembly-CSharp");
+                 Type wt = _worldTimeType ?? (_worldTimeType = Type.GetType("WorldTime, Assembly-CSharp"));
                  object d = GameReflection.GetStaticValueByType(wt, typeof(GameDate));
                  if (d == null) return;
                  Type dt=d.GetType();
@@ -834,7 +839,7 @@ namespace TRTracker
                  TavernReputation rep = GameReflection.FindSingleton<TavernReputation>();
                  if (rep == null) return;
                  int rawXP = TavernReputation.GetReputationExp(); 
-                 PropertyInfo levelProp = GameReflection.FindInstancePropertyByType(typeof(TavernReputation), typeof(int));
+                 PropertyInfo levelProp = _levelProp ?? (_levelProp = GameReflection.FindInstancePropertyByType(typeof(TavernReputation), typeof(int)));
                  int level = levelProp != null ? (int)levelProp.GetValue(rep, null) : 0;
                  FieldInfo maxXPField = GameReflection.FindClosestIntField(rep, rawXP);
                  int maxXP = maxXPField != null ? (int)maxXPField.GetValue(rep) : rawXP;
@@ -856,7 +861,7 @@ namespace TRTracker
                  } catch {}
 
                  // Temp
-                 PropertyInfo heatProp = GameReflection.FindInstancePropertyByType(typeof(TavernManager), typeof(HeatLevel));
+                 PropertyInfo heatProp = _heatProp ?? (_heatProp = GameReflection.FindInstancePropertyByType(typeof(TavernManager), typeof(HeatLevel)));
                  object heatVal = heatProp != null ? heatProp.GetValue(tm, null) : "Unknown";
                  string heatStr = heatVal.ToString();
                  string heatColor = "white"; 
@@ -866,7 +871,7 @@ namespace TRTracker
                  heatStr = string.Format("<color={0}>{1}</color>", heatColor, heatStr);
 
                  // Dirt Level
-                 PropertyInfo dirtProp = GameReflection.FindInstancePropertyByType(typeof(TavernManager), typeof(DirtLevel));
+                 PropertyInfo dirtProp = _dirtProp ?? (_dirtProp = GameReflection.FindInstancePropertyByType(typeof(TavernManager), typeof(DirtLevel)));
                  object dirtVal = dirtProp != null ? dirtProp.GetValue(tm, null) : "Unknown";
                  string dirtStr = dirtVal.ToString();
                  string dirtColor = "white";
