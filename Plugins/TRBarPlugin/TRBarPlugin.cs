@@ -7,6 +7,7 @@ using UnityEngine.EventSystems;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using TRShared;
 
 namespace TRBarPlugin
 {
