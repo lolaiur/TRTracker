@@ -4,7 +4,9 @@
 
 In-progress major update on a local branch; not yet shipped.
 
-### Cleanup
+### Performance
+- TRBar: cached the per-item reflection that walks the type hierarchy for the `item` field on every tap and food item each update cycle (GetItemName and IsSpecialItem). The FieldInfo is now looked up once per runtime type and reused, and the `nameId` / `id` fields on Item are cached statically. This eliminates the most frequent reflection in the bar tracker.
+- Other mods assessed: TRAutoloader already caches the zone-manager singleton, price fields, and clone methods; TRTracker uses a singleton cache cleared on scene load; TRStats and TRBarrels are light.
 - TRAutoloader: removed the dead "observed drink cap" cluster (`_observedDrinkCaps`, `RememberObservedDrinkCap`, `GetObservedDrinkCap`). `GetDrinkTargetMax` stopped reading it in 1.0.9, so the store was being written but never consumed.
 - TRAutoloader: removed the dead `Reset()` method (never called; `NotifySceneLoaded` already does the same cache clears).
 - Compiler sweep across all mods confirmed no unused fields or locals remain.
