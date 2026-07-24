@@ -40,8 +40,8 @@ namespace TRStats
             Directory.CreateDirectory(logDir);
             LogPath = Path.Combine(logDir, "trstats_debug.txt");
             try { File.Delete(LogPath); } catch { }
-            File.WriteAllText(LogPath, "TRStats 1.3.4\n");
-            Logger.LogInfo("TRStats 1.3.4");
+            File.WriteAllText(LogPath, "TRStats 2.0.0\n");
+            Logger.LogInfo("TRStats 2.0.0");
 
             // Initialize config
             PlayerSpeedMultiplier = Config.Bind("Player", "SpeedMultiplier", 1.0f,
@@ -296,7 +296,7 @@ namespace TRStats
                 hTitle.transform.SetParent(header.transform, false);
                 Text ht = hTitle.AddComponent<Text>();
                 ht.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-                ht.text = "TR CHEATS 1.3.4 (F4)";
+                ht.text = "TR CHEATS 2.0.0 (F4)";
                 ht.alignment = TextAnchor.MiddleCenter;
                 ht.color = new Color(1f, 0.8f, 0.4f);
                 ht.fontSize = 14;
@@ -1136,98 +1136,10 @@ namespace TRStats
         }
     }
 
-    public static class WindowLayerUtil
-    {
-        public static void BringToFront(Component component)
-        {
-            if (component == null) return;
-
-            Canvas rootCanvas = component.GetComponentInParent<Canvas>();
-            if (rootCanvas != null && rootCanvas.isRootCanvas)
-            {
-                rootCanvas.overrideSorting = true;
-                rootCanvas.sortingOrder = 1000 + (int)((DateTime.UtcNow.Ticks / TimeSpan.TicksPerMillisecond) % 100000);
-            }
-
-            RectTransform rect = component.GetComponent<RectTransform>();
-            if (rect != null) rect.SetAsLastSibling();
-        }
-    }
-
-    public class WindowPointerFocus : MonoBehaviour, IPointerDownHandler
-    {
-        public void OnPointerDown(PointerEventData data)
-        {
-            WindowLayerUtil.BringToFront(this);
-        }
-    }
-
-    public class WindowDragger : MonoBehaviour, IDragHandler, IPointerDownHandler
-    {
-        public RectTransform TargetRect;
-        public void OnPointerDown(PointerEventData data)
-        {
-            WindowLayerUtil.BringToFront(this);
-        }
-        public void OnDrag(PointerEventData data)
-        {
-            WindowLayerUtil.BringToFront(this);
-            if (TargetRect != null) TargetRect.anchoredPosition += data.delta;
-        }
-    }
-
-    public class ResizeHandler : MonoBehaviour, IDragHandler, IPointerDownHandler
-    {
-        public RectTransform PanelRect;
-        public Vector2 MinSize = new Vector2(300, 200);
-        public Vector2 MaxSize = new Vector2(600, 800);
-
-        public void OnPointerDown(PointerEventData data)
-        {
-            WindowLayerUtil.BringToFront(this);
-        }
-
-        public void OnDrag(PointerEventData data)
-        {
-            WindowLayerUtil.BringToFront(this);
-            if (PanelRect == null) return;
-            Vector2 size = PanelRect.sizeDelta;
-            size.x += data.delta.x;
-            size.y -= data.delta.y;
-            size.x = Mathf.Clamp(size.x, MinSize.x, MaxSize.x);
-            size.y = Mathf.Clamp(size.y, MinSize.y, MaxSize.y);
-            PanelRect.sizeDelta = size;
-        }
-    }
-
-    public class CollapseHandler : MonoBehaviour
-    {
-        public RectTransform PanelRect;
-        public GameObject ContentObj;
-        public float ExpandedHeight;
-        public float CollapsedHeight;
-        public bool IsCollapsed = false;
-        public Text Label;
-
-        public void OnToggle()
-        {
-            IsCollapsed = !IsCollapsed;
-            if (PanelRect != null)
-            {
-                PanelRect.sizeDelta = new Vector2(PanelRect.sizeDelta.x, IsCollapsed ? CollapsedHeight : ExpandedHeight);
-            }
-            if (ContentObj != null)
-            {
-                ContentObj.SetActive(!IsCollapsed);
-            }
-            if (Label != null) Label.text = IsCollapsed ? "+" : "-";
-        }
-    }
-
     public static class PluginInfo
     {
         public const string PLUGIN_GUID = "com.trstats.mod";
         public const string PLUGIN_NAME = "TR Stats";
-        public const string PLUGIN_VERSION = "1.3.4";
+        public const string PLUGIN_VERSION = "2.0.0";
     }
 }

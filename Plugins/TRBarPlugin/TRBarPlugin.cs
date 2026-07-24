@@ -11,7 +11,7 @@ using TRShared;
 
 namespace TRBarPlugin
 {
-    [BepInPlugin("com.lolaiur.trbar", "TRBar", "1.3.1")]
+    [BepInPlugin("com.lolaiur.trbar", "TRBar", "2.0.0")]
     [BepInProcess("TravellersRest.exe")]
     public class TRBarPlugin : BaseUnityPlugin
     {
@@ -23,8 +23,8 @@ namespace TRBarPlugin
             Directory.CreateDirectory(logDir);
             LogPath = Path.Combine(logDir, "bar_debug.txt");
             try { File.Delete(LogPath); } catch {}
-            File.WriteAllText(LogPath, "TRBar 1.3.1\n");
-            Logger.LogInfo("TRBar 1.3.1");
+            File.WriteAllText(LogPath, "TRBar 2.0.0\n");
+            Logger.LogInfo("TRBar 2.0.0");
             
             // Cleanup old
             var old = FindObjectOfType<BarTrackerManager>();
@@ -290,7 +290,7 @@ namespace TRBarPlugin
                     hTitle.transform.SetParent(header.transform, false);
                     Text ht = hTitle.AddComponent<Text>();
                     if (uiFont != null) ht.font = uiFont;
-                    ht.text = "TR BAR TRACKER 1.3.1 (F3)";
+                    ht.text = "TR BAR TRACKER 2.0.0 (F3)";
                     ht.alignment = TextAnchor.MiddleCenter;
                     ht.color = new Color(1f, 0.8f, 0.4f);
                     ht.fontSize = 14;
