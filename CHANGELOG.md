@@ -1,6 +1,12 @@
 # Changelog
 
-## 2.0.0 (unreleased)
+## 2.0.0 (unreleased) — post-push fixes
+
+### Bug fixes
+- Fixed drink duplication: empty-drink-fill used direct slot transfer which bypassed the game's item tracking, causing bartenders to serve without consuming (extra drinks in player and multiplayer inventories). Now uses the game's AddItemInstance path so items are properly registered and consumed on serve.
+
+### Improvements
+- Diversity over price: the smart-fill now places a different drink/food in each empty container/slot (tracked by item ID), prioritizing higher-value items but ensuring no two containers get the same item. If the loader only has one type, only one container is filled and the rest stay empty rather than stacking duplicates.
 
 In-progress major update on a local branch; not yet shipped.
 

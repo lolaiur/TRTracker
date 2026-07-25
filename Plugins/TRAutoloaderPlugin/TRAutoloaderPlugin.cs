@@ -798,14 +798,15 @@ namespace TRAutoloaderPlugin
             }
 
             // Smart-fill: stock any empty bar-menu slots with a priority-chosen food (special event
-            // item first, then highest revenue). TryMoveOneItem fails once the menu is full, which
-            // stops the loop.
+            // item first, then highest revenue), one different food per slot for diversity.
             if (moved < MaxFoodMovesPerTick) {
                 bool halloweenActive = IsHalloweenActive();
+                HashSet<int> placedIds = new HashSet<int>();
                 while (moved < MaxFoodMovesPerTick) {
-                    Slot source = PickBestSourceSlot(loader, false, halloweenActive);
+                    Slot source = PickBestSourceSlot(loader, false, halloweenActive, placedIds);
                     if (source == null) break;
                     if (!TryMoveOneItem(loader, barInventory, source)) break;
+                    placedIds.Add(GetItemId(source.itemInstance));
                     moved++;
                 }
             }
@@ -914,21 +915,26 @@ namespace TRAutoloaderPlugin
                 }
             }
 
-            // Smart-fill: top off any still-empty dispenser/keg slots with a priority-chosen drink
-            // (special event item first, then highest revenue). Only genuinely empty target slots are
-            // touched, so an already-filled dispenser is never given a different drink.
+            // Smart-fill: fill still-empty dispenser/keg slots with a priority-chosen drink
+            // (special event item first, then highest revenue), one different drink per dispenser
+            // for diversity. Uses AddItemInstance (not direct slot transfer) so the game properly
+            // registers the item — direct slot transfer caused duplication where served drinks were
+            // not consumed, giving players extra drinks.
             if (unitsMoved < MaxDrinkUnitsPerTick && dispensers != null) {
                 bool halloweenActive = IsHalloweenActive();
+                HashSet<int> placedIds = new HashSet<int>();
                 foreach (DrinkDispenser dispenser in dispensers) {
                     if (unitsMoved >= MaxDrinkUnitsPerTick) break;
                     if (!IsDrinkTargetUsable(dispenser)) continue;
                     Slot slot = GetDispenserSlot(dispenser);
                     if (slot == null || slot.itemInstance != null) continue; // only empty target slots
-                    Slot source = PickBestSourceSlot(loader, true, halloweenActive);
+                    Slot source = PickBestSourceSlot(loader, true, halloweenActive, placedIds);
                     if (source == null) break;
-                    int filled = TryMoveItemUnits(loader, dispenser, slot, source, MaxDrinkUnitsPerTick - unitsMoved, true);
-                    if (filled > 0) unitsMoved += filled;
-                    else break; // best source did not fit; stop rather than retry the same failing source
+                    if (TryMoveOneItem(loader, dispenser, source)) {
+                        placedIds.Add(GetItemId(source.itemInstance));
+                        unitsMoved++;
+                    }
+                    // Don't break on failure — a different source may work for the next dispenser.
                 }
             }
 
@@ -1648,7 +1654,7 @@ namespace TRAutoloaderPlugin
         // Pick the best source slot from the loader to fill an EMPTY target, by priority: event-special
         // items first (halloween food while halloween is active), then highest revenue. `drinks` selects
         // loose-drink sources; otherwise food (FoodInstance) sources.
-        private static Slot PickBestSourceSlot(ItemContainer loader, bool drinks, bool halloweenActive)
+        private static Slot PickBestSourceSlot(ItemContainer loader, bool drinks, bool halloweenActive, HashSet<int> excludedIds)
         {
             if (loader == null || loader.slots == null) return null;
 
@@ -1659,6 +1665,11 @@ namespace TRAutoloaderPlugin
             {
                 if (slot == null || slot.itemInstance == null || slot.Stack <= 0) continue;
                 if (drinks ? !IsLooseDrinkInstance(slot.itemInstance) : !(slot.itemInstance is FoodInstance)) continue;
+
+                // Diversity: skip items already placed in this smart-fill pass so each container
+                // gets a different drink/food.
+                int itemId = GetItemId(slot.itemInstance);
+                if (excludedIds != null && itemId > 0 && excludedIds.Contains(itemId)) continue;
 
                 bool special = halloweenActive && IsSpecialItem(slot.itemInstance);
                 int revenue = GetInstanceValue(slot.itemInstance);
