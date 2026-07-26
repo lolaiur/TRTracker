@@ -531,62 +531,76 @@ namespace TRBarrels
                             displayName = displayName.Replace("(Food)", "").Replace("(Clone)", "").Trim();
                             e.Name = string.Format("{0} <size=11>(x{1})</size>", displayName, qty);
 
-                            // Stage detection - scan int properties for stage value (1-4)
-                            int stage = 0;
+                            // Compute aging progress from the barrel's timer FIRST, so we can gate
+                            // the stage scan: unaged items (progress 0) must show "Unaged" even if
+                            // the item has a non-zero quality property that the old scan would
+                            // misinterpret as an aging stage (e.g. quality "two dots" = value 2
+                            // picked up as stage "Normal").
+                            double progress = 0;
                             try {
-                                Type itemType = itemInst.GetType();
-
-                                foreach (PropertyInfo p in GetStageProperties(itemType)) {
-                                    try {
-                                        int val = (int)p.GetValue(itemInst, null);
-                                        if (val >= 1 && val <= 4 && stage == 0) {
-                                            stage = val;
-                                            break;
-                                        }
-                                    }
-                                    catch {}
-                                }
-                            } catch {}
-                            e.StageVal = stage;
-                            
-                            string stageStr = "Unaged";
-                            if(stage==1) stageStr = "<color=blue>Young</color>";
-                            if(stage==2) stageStr = "<color=green>Normal</color>";
-                            if(stage==3) stageStr = "<color=purple>Reserve</color>";
-                            if(stage>=4) stageStr = "<color=#FF4500>Grand R.</color>"; // Orange Red
-                            e.Stage = stageStr;
-                            
-                            // Time
-                            if (stage >= 4) {
-                                e.Time = "<color=green>100.0%</color>";
-                                e.ProgressVal = 101; 
-                            } else {
                                 FieldInfo timerF = GetCachedField(_timerFields, bType, "timer");
-                                Array timers = (Array)timerF.GetValue(b);
-                                if (timers != null && timers.Length > i) {
-                                    object t = timers.GetValue(i);
-                                    if (t != null) {
-                                        Type timerType = t.GetType();
-                                        FieldInfo totalF = GetCachedField(_totalMinuteFields, timerType, "totalMinToFinish");
-                                        FieldInfo startF = GetCachedField(_startMinuteFields, timerType, "dateStartedMin");
-                                        if (totalF != null && startF != null) {
-                                            ulong total = (ulong)totalF.GetValue(t);
-                                            ulong start = (ulong)startF.GetValue(t);
-                                            ulong current = BarrelReflection.GetStaticValueByType<ulong>(Type.GetType("WorldTime, Assembly-CSharp"));
-                                            
-                                            if (total > 0) {
-                                                double elapsed = (double)(current - start);
-                                                double prog = (elapsed / (double)total) * 100.0;
-                                                if (prog < 0) prog = 0;
-                                                if (prog > 100) prog = 100;
-                                                e.ProgressVal = prog;
-                                                e.Time = prog.ToString("F1") + "%";
-                                            } else {
-                                                e.Time = "Wait";
+                                if (timerF != null) {
+                                    Array timers = (Array)timerF.GetValue(b);
+                                    if (timers != null && timers.Length > i) {
+                                        object t = timers.GetValue(i);
+                                        if (t != null) {
+                                            Type timerType = t.GetType();
+                                            FieldInfo totalF = GetCachedField(_totalMinuteFields, timerType, "totalMinToFinish");
+                                            FieldInfo startF = GetCachedField(_startMinuteFields, timerType, "dateStartedMin");
+                                            if (totalF != null && startF != null) {
+                                                ulong total = (ulong)totalF.GetValue(t);
+                                                ulong start = (ulong)startF.GetValue(t);
+                                                ulong current = BarrelReflection.GetStaticValueByType<ulong>(Type.GetType("WorldTime, Assembly-CSharp"));
+                                                if (total > 0) {
+                                                    double elapsed = (double)(current - start);
+                                                    progress = (elapsed / (double)total) * 100.0;
+                                                    if (progress < 0) progress = 0;
+                                                    if (progress > 100) progress = 100;
+                                                }
                                             }
                                         }
                                     }
                                 }
+                            } catch {}
+
+                            // Stage: only scan item properties if the barrel has actually started
+                            // aging (progress > 0). Unaged items (progress 0) are always stage 0 so
+                            // quality properties don't get misread as aging stages.
+                            int stage = 0;
+                            if (progress > 0) {
+                                try {
+                                    Type itemType = itemInst.GetType();
+                                    foreach (PropertyInfo p in GetStageProperties(itemType)) {
+                                        try {
+                                            int val = (int)p.GetValue(itemInst, null);
+                                            if (val >= 1 && val <= 4 && stage == 0) {
+                                                stage = val;
+                                                break;
+                                            }
+                                        }
+                                        catch {}
+                                    }
+                                } catch {}
+                            }
+                            e.StageVal = stage;
+
+                            string stageStr = "Unaged";
+                            if(stage==1) stageStr = "<color=blue>Young</color>";
+                            if(stage==2) stageStr = "<color=green>Normal</color>";
+                            if(stage==3) stageStr = "<color=purple>Reserve</color>";
+                            if(stage>=4) stageStr = "<color=#FF4500>Grand R.</color>";
+                            e.Stage = stageStr;
+
+                            // Progress display
+                            if (stage >= 4) {
+                                e.Time = "<color=green>100.0%</color>";
+                                e.ProgressVal = 101;
+                            } else if (progress > 0) {
+                                e.ProgressVal = progress;
+                                e.Time = progress.ToString("F1") + "%";
+                            } else {
+                                e.Time = "---";
+                                e.ProgressVal = 0;
                             }
                             _entries.Add(e);
                         }

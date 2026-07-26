@@ -8,6 +8,9 @@
 ### Improvements
 - Diversity over price: the smart-fill now places a different drink/food in each empty container/slot (tracked by item ID), prioritizing higher-value items but ensuring no two containers get the same item. If the loader only has one type, only one container is filled and the rest stay empty rather than stacking duplicates.
 
+### Aging tracker (TRBarrels)
+- Fixed quality items showing wrong aging stage. The stage scanner was picking up int properties from the item (including quality properties, e.g. "two dots" = value 2) and interpreting them as aging stages, showing unaged quality items as "Young" or "Normal". Now computes aging progress from the barrel's timer FIRST, and only scans item properties for stage if the item is actually aging (progress > 0). Unaged items always show "Unaged".
+
 In-progress major update on a local branch; not yet shipped.
 
 ### Performance
