@@ -532,11 +532,8 @@ namespace TRBarrels
                             displayName = displayName.Replace("(Food)", "").Replace("(Clone)", "").Trim();
                             e.Name = string.Format("{0} <size=11>(x{1})</size>", displayName, qty);
 
-                            // Compute aging progress from the barrel's timer FIRST, so we can gate
-                            // the stage scan: unaged items (progress 0) must show "Unaged" even if
-                            // the item has a non-zero quality property that the old scan would
-                            // misinterpret as an aging stage (e.g. quality "two dots" = value 2
-                            // picked up as stage "Normal").
+                            // Compute aging progress from the barrel's timer. The start>0 check
+                            // prevents unaged items (dateStartedMin=0) from computing huge progress.
                             double progress = 0;
                             try {
                                 FieldInfo timerF = GetCachedField(_timerFields, bType, "timer");
@@ -552,7 +549,7 @@ namespace TRBarrels
                                                 ulong total = (ulong)totalF.GetValue(t);
                                                 ulong start = (ulong)startF.GetValue(t);
                                                 ulong current = BarrelReflection.GetStaticValueByType<ulong>(Type.GetType("WorldTime, Assembly-CSharp"));
-                                                if (total > 0) {
+                                                if (total > 0 && start > 0 && current >= start) {
                                                     double elapsed = (double)(current - start);
                                                     progress = (elapsed / (double)total) * 100.0;
                                                     if (progress < 0) progress = 0;
@@ -564,19 +561,26 @@ namespace TRBarrels
                                 }
                             } catch {}
 
-                            // Stage: read directly from the barrel's agingLevel array (per slot).
-                            // This avoids scanning the item's int properties, which picks up quality
-                            // properties and misreads them as aging stages.
+                            // Stage: scan the item's int properties for aging stage (1-4), but ONLY
+                            // if the barrel timer shows actual aging progress. Unaged items
+                            // (progress 0, including dateStartedMin=0) are always Unaged so quality
+                            // properties can't be misread as aging stages.
                             int stage = 0;
-                            try {
-                                FieldInfo agingLevelF = GetCachedField(_agingLevelFields, bType, "agingLevel");
-                                if (agingLevelF != null) {
-                                    int[] agingLevels = (int[])agingLevelF.GetValue(b);
-                                    if (agingLevels != null && i < agingLevels.Length) {
-                                        stage = agingLevels[i];
+                            if (progress > 0) {
+                                try {
+                                    Type itemType = itemInst.GetType();
+                                    foreach (PropertyInfo p in GetStageProperties(itemType)) {
+                                        try {
+                                            int val = (int)p.GetValue(itemInst, null);
+                                            if (val >= 1 && val <= 4 && stage == 0) {
+                                                stage = val;
+                                                break;
+                                            }
+                                        }
+                                        catch {}
                                     }
-                                }
-                            } catch {}
+                                } catch {}
+                            }
                             e.StageVal = stage;
 
                             string stageStr = "Unaged";
