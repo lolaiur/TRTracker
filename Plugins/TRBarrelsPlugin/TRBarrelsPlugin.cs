@@ -414,6 +414,7 @@ namespace TRBarrels
         private readonly Dictionary<Type, FieldInfo> _itemInstanceFields = new Dictionary<Type, FieldInfo>();
         private readonly Dictionary<Type, FieldInfo> _totalMinuteFields = new Dictionary<Type, FieldInfo>();
         private readonly Dictionary<Type, FieldInfo> _startMinuteFields = new Dictionary<Type, FieldInfo>();
+        private readonly Dictionary<Type, FieldInfo> _agingLevelFields = new Dictionary<Type, FieldInfo>();
         private readonly Dictionary<Type, PropertyInfo[]> _stageProperties = new Dictionary<Type, PropertyInfo[]>();
 
         void Update()
@@ -563,25 +564,19 @@ namespace TRBarrels
                                 }
                             } catch {}
 
-                            // Stage: only scan item properties if the barrel has actually started
-                            // aging (progress > 0). Unaged items (progress 0) are always stage 0 so
-                            // quality properties don't get misread as aging stages.
+                            // Stage: read directly from the barrel's agingLevel array (per slot).
+                            // This avoids scanning the item's int properties, which picks up quality
+                            // properties and misreads them as aging stages.
                             int stage = 0;
-                            if (progress > 0) {
-                                try {
-                                    Type itemType = itemInst.GetType();
-                                    foreach (PropertyInfo p in GetStageProperties(itemType)) {
-                                        try {
-                                            int val = (int)p.GetValue(itemInst, null);
-                                            if (val >= 1 && val <= 4 && stage == 0) {
-                                                stage = val;
-                                                break;
-                                            }
-                                        }
-                                        catch {}
+                            try {
+                                FieldInfo agingLevelF = GetCachedField(_agingLevelFields, bType, "agingLevel");
+                                if (agingLevelF != null) {
+                                    int[] agingLevels = (int[])agingLevelF.GetValue(b);
+                                    if (agingLevels != null && i < agingLevels.Length) {
+                                        stage = agingLevels[i];
                                     }
-                                } catch {}
-                            }
+                                }
+                            } catch {}
                             e.StageVal = stage;
 
                             string stageStr = "Unaged";
