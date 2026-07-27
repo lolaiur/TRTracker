@@ -562,42 +562,16 @@ namespace TRBarrels
                                 }
                             } catch {}
 
-                            // Stage: scan the item's int properties for aging stage (1-4), but ONLY
-                            // if the barrel timer shows actual aging progress. Unaged items
-                            // (progress 0, including dateStartedMin=0) are always Unaged so quality
-                            // properties can't be misread as aging stages.
+                            // Stage: derive from timer progress, not from item properties. The item's
+                            // int properties are STATIC (quality tier, max aging level) and don't
+                            // change as it ages, so scanning them gave wrong results for quality items.
+                            // Thresholds: 0-33% Young, 33-66% Normal, 66-100% Reserve, done = Grand R.
                             int stage = 0;
-                            if (progress > 0) {
-                                try {
-                                    Type itemType = itemInst.GetType();
-                                    foreach (PropertyInfo p in GetStageProperties(itemType)) {
-                                        try {
-                                            int val = (int)p.GetValue(itemInst, null);
-                                            if (val >= 1 && val <= 4 && stage == 0) {
-                                                stage = val;
-                                                break;
-                                            }
-                                        }
-                                        catch {}
-                                    }
-                                } catch {}
-                            }
+                            if (progress >= 100) stage = 4;
+                            else if (progress > 66) stage = 3;
+                            else if (progress > 33) stage = 2;
+                            else if (progress > 0) stage = 1;
                             e.StageVal = stage;
-
-                            // Diagnostic: dump all int properties once per 30s to identify which is
-                            // quality vs aging stage. Check barrels_debug.txt in ModLogs.
-                            if (Time.unscaledTime > _nextStageDiagTime) {
-                                _nextStageDiagTime = Time.unscaledTime + 30f;
-                                try {
-                                    System.Text.StringBuilder dsb = new System.Text.StringBuilder();
-                                    dsb.AppendLine("[StageDiag] " + displayName + " prog=" + progress.ToString("F1") + "% stage=" + stage);
-                                    foreach (PropertyInfo dp in GetStageProperties(itemInst.GetType())) {
-                                        try { dsb.AppendLine("  " + dp.Name + " = " + (int)dp.GetValue(itemInst, null)); } catch {}
-                                    }
-                                    string diagPath = System.IO.Path.Combine(BepInEx.Paths.GameRootPath, "ModLogs", "barrels_debug.txt");
-                                    System.IO.File.AppendAllText(diagPath, dsb.ToString());
-                                } catch {}
-                            }
 
                             string stageStr = "Unaged";
                             if(stage==1) stageStr = "<color=blue>Young</color>";
