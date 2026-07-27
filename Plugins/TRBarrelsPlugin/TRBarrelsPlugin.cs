@@ -400,6 +400,7 @@ namespace TRBarrels
         private float _listUpdateInterval = 1f;
         private float _nextScanTime = 0f;
         private float _nextUpdateTime = 0f;
+        private float _nextStageDiagTime = 0f;
         private List<Component> cachedBarrels = new List<Component>();
         private Type _agingBarrelType;
         
@@ -582,6 +583,21 @@ namespace TRBarrels
                                 } catch {}
                             }
                             e.StageVal = stage;
+
+                            // Diagnostic: dump all int properties once per 30s to identify which is
+                            // quality vs aging stage. Check barrels_debug.txt in ModLogs.
+                            if (Time.unscaledTime > _nextStageDiagTime) {
+                                _nextStageDiagTime = Time.unscaledTime + 30f;
+                                try {
+                                    System.Text.StringBuilder dsb = new System.Text.StringBuilder();
+                                    dsb.AppendLine("[StageDiag] " + displayName + " prog=" + progress.ToString("F1") + "% stage=" + stage);
+                                    foreach (PropertyInfo dp in GetStageProperties(itemInst.GetType())) {
+                                        try { dsb.AppendLine("  " + dp.Name + " = " + (int)dp.GetValue(itemInst, null)); } catch {}
+                                    }
+                                    string diagPath = System.IO.Path.Combine(BepInEx.Paths.GameRootPath, "ModLogs", "barrels_debug.txt");
+                                    System.IO.File.AppendAllText(diagPath, dsb.ToString());
+                                } catch {}
+                            }
 
                             string stageStr = "Unaged";
                             if(stage==1) stageStr = "<color=blue>Young</color>";
