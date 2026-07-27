@@ -919,9 +919,9 @@ namespace TRAutoloaderPlugin
 
             // Smart-fill: fill still-empty dispenser/keg slots with a priority-chosen drink
             // (special event item first, then highest revenue), one different drink per dispenser
-            // for diversity. Uses AddItemInstance (not direct slot transfer) so the game properly
-            // registers the item — direct slot transfer caused duplication where served drinks were
-            // not consumed, giving players extra drinks.
+            // for diversity. Tries AddItemInstance first (safe); if the dispenser's filter rejects
+            // it, falls back to direct slot transfer (fills the slot but may cause duplication
+            // where served drinks are not consumed — accepted tradeoff per user request).
             if (unitsMoved < MaxDrinkUnitsPerTick && dispensers != null) {
                 bool halloweenActive = IsHalloweenActive();
                 HashSet<int> placedIds = new HashSet<int>();
@@ -933,7 +933,15 @@ namespace TRAutoloaderPlugin
                     Slot source = PickBestSourceSlot(loader, true, halloweenActive, placedIds);
                     if (source == null) source = PickBestSourceSlot(loader, true, halloweenActive, null);
                     if (source == null) break;
-                    if (TryMoveOneItem(loader, dispenser, source)) {
+
+                    bool filled = TryMoveOneItem(loader, dispenser, source);
+                    if (!filled) {
+                        // AddItemInstance was rejected by the dispenser filter. Fall back to direct
+                        // slot transfer (may cause duplication on serve — accepted tradeoff).
+                        filled = TryMoveItemUnits(loader, dispenser, slot, source, Mathf.Min(MaxDrinkUnitsPerTick - unitsMoved, 20), true) > 0;
+                        if (filled) RecordAction("Smart-fill used direct transfer for " + GetItemLabel(source.itemInstance) + " (duplication risk).");
+                    }
+                    if (filled) {
                         placedIds.Add(GetItemId(source.itemInstance));
                         unitsMoved++;
                     }
