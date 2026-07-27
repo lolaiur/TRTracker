@@ -798,12 +798,14 @@ namespace TRAutoloaderPlugin
             }
 
             // Smart-fill: stock any empty bar-menu slots with a priority-chosen food (special event
-            // item first, then highest revenue), one different food per slot for diversity.
+            // item first, then highest revenue). Prefers diversity (different food per slot) but
+            // falls back to duplicates if there aren't enough unique items.
             if (moved < MaxFoodMovesPerTick) {
                 bool halloweenActive = IsHalloweenActive();
                 HashSet<int> placedIds = new HashSet<int>();
                 while (moved < MaxFoodMovesPerTick) {
                     Slot source = PickBestSourceSlot(loader, false, halloweenActive, placedIds);
+                    if (source == null) source = PickBestSourceSlot(loader, false, halloweenActive, null);
                     if (source == null) break;
                     if (!TryMoveOneItem(loader, barInventory, source)) break;
                     placedIds.Add(GetItemId(source.itemInstance));
@@ -929,6 +931,7 @@ namespace TRAutoloaderPlugin
                     Slot slot = GetDispenserSlot(dispenser);
                     if (slot == null || slot.itemInstance != null) continue; // only empty target slots
                     Slot source = PickBestSourceSlot(loader, true, halloweenActive, placedIds);
+                    if (source == null) source = PickBestSourceSlot(loader, true, halloweenActive, null);
                     if (source == null) break;
                     if (TryMoveOneItem(loader, dispenser, source)) {
                         placedIds.Add(GetItemId(source.itemInstance));
