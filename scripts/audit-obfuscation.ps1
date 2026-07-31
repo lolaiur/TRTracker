@@ -245,6 +245,8 @@ $targets = @(
     [pscustomobject]@{ Plugin = "TRBar"; Check = "TavernManager open field"; Found = Test-MemberByName -TypeName "TavernManager" -MemberName "_open" -MemberKind "Field" },
     [pscustomobject]@{ Plugin = "TRBar"; Check = "DrinkDispenser slots"; Found = Test-MemberByName -TypeName "DrinkDispenser" -MemberName "slots" -MemberKind "Field" },
     [pscustomobject]@{ Plugin = "TRBar"; Check = "BarMenuInventory.GetInstance"; Found = Test-MemberByName -TypeName "BarMenuInventory" -MemberName "GetInstance" -MemberKind "Method" },
+    [pscustomobject]@{ Plugin = "TRBar"; Check = "Food.halloweenFood"; Found = Test-MemberByName -TypeName "Food" -MemberName "halloweenFood" -MemberKind "Field" },
+    [pscustomobject]@{ Plugin = "TRBar"; Check = "HalloweenEvent type"; Found = ($null -ne $assembly.GetType("HalloweenEvent")) },
     [pscustomobject]@{ Plugin = "TRStats"; Check = "CropSetter crop property"; Found = Test-InstancePropertyOfType -TypeName "CropSetter" -ValueTypeName "Crop" },
     [pscustomobject]@{ Plugin = "TRStats"; Check = "Crafter fuel property"; Found = Test-InstancePropertyOfType -TypeName "Crafter" -ValueTypeName "Int32" },
     [pscustomobject]@{ Plugin = "TRStats"; Check = "Crafter.SetFuel"; Found = Test-MemberByName -TypeName "Crafter" -MemberName "SetFuel" -MemberKind "Method" },
@@ -257,6 +259,8 @@ $targets = @(
     [pscustomobject]@{ Plugin = "TRStats"; Check = "AnimalFeederWater.FillFeeder"; Found = Test-MemberByName -TypeName "AnimalFeederWater" -MemberName "FillFeeder" -MemberKind "Method" },
     [pscustomobject]@{ Plugin = "TRStats"; Check = "AnimalFeederWaterHenHouse.currentAmount"; Found = Test-MemberByName -TypeName "AnimalFeederWaterHenHouse" -MemberName "currentAmount" -MemberKind "Field" },
     [pscustomobject]@{ Plugin = "TRStats"; Check = "AnimalFeeder.maxAmount"; Found = Test-MemberByName -TypeName "AnimalFeeder" -MemberName "maxAmount" -MemberKind "Field" },
+    [pscustomobject]@{ Plugin = "TRStats"; Check = "Container.allowedItemsList"; Found = Test-MemberByName -TypeName "Container" -MemberName "allowedItemsList" -MemberKind "Field" },
+    [pscustomobject]@{ Plugin = "TRStats"; Check = "Container.GetNumberOfItems"; Found = Test-MemberByName -TypeName "Container" -MemberName "GetNumberOfItems" -MemberKind "Method" },
     [pscustomobject]@{ Plugin = "TRStats"; Check = "Item.nameId"; Found = Test-MemberByName -TypeName "Item" -MemberName "nameId" -MemberKind "Field" },
     [pscustomobject]@{ Plugin = "TRBarrels"; Check = "AgingBarrel.inputSlot"; Found = Test-MemberByName -TypeName "AgingBarrel" -MemberName "inputSlot" -MemberKind "Field" },
     [pscustomobject]@{ Plugin = "TRBarrels"; Check = "AgingBarrel.timer"; Found = Test-MemberByName -TypeName "AgingBarrel" -MemberName "timer" -MemberKind "Field" },
@@ -269,7 +273,13 @@ $targets = @(
     [pscustomobject]@{ Plugin = "TRAutoloader"; Check = "Placeable.guidString"; Found = Test-MemberByName -TypeName "Placeable" -MemberName "guidString" -MemberKind "Field" },
     [pscustomobject]@{ Plugin = "TRAutoloader"; Check = "Placeable.GetCurrentTavernZone"; Found = Test-MemberByName -TypeName "Placeable" -MemberName "GetCurrentTavernZone" -MemberKind "Method" },
     [pscustomobject]@{ Plugin = "TRAutoloader"; Check = "ItemContainer.bigContainer"; Found = Test-MemberByName -TypeName "ItemContainer" -MemberName "bigContainer" -MemberKind "Field" },
-    [pscustomobject]@{ Plugin = "TRAutoloader"; Check = "DrinkDispenser container-updated field"; Found = Test-MemberByName -TypeName "DrinkDispenser" -MemberName "DrinkDispenserContainerUpdated" -MemberKind "Field" }
+    [pscustomobject]@{ Plugin = "TRAutoloader"; Check = "Food.halloweenFood"; Found = Test-MemberByName -TypeName "Food" -MemberName "halloweenFood" -MemberKind "Field" },
+    [pscustomobject]@{ Plugin = "TRAutoloader"; Check = "HalloweenEvent type"; Found = ($null -ne $assembly.GetType("HalloweenEvent")) },
+    [pscustomobject]@{ Plugin = "TRAutoloader"; Check = "DrinkDispenser container-updated field"; Found = Test-MemberByName -TypeName "DrinkDispenser" -MemberName "DrinkDispenserContainerUpdated" -MemberKind "Field" },
+    [pscustomobject]@{ Plugin = "TRAutoloader"; Check = "OnlineManager.PlayingOnline"; Found = Test-MemberByName -TypeName "OnlineManager" -MemberName "PlayingOnline" -MemberKind "Method" },
+    [pscustomobject]@{ Plugin = "TRAutoloader"; Check = "OnlineManager.IsMasterClient"; Found = Test-MemberByName -TypeName "OnlineManager" -MemberName "IsMasterClient" -MemberKind "Method" },
+    [pscustomobject]@{ Plugin = "TRAutoloader"; Check = "OnlineSlotsManager.instance"; Found = Test-MemberByName -TypeName "OnlineSlotsManager" -MemberName "instance" -MemberKind "Field" },
+    [pscustomobject]@{ Plugin = "TRAutoloader"; Check = "OnlineSlotsManager.SendSlot"; Found = Test-MemberByName -TypeName "OnlineSlotsManager" -MemberName "SendSlot" -MemberKind "Method" }
 )
 
 Write-Host "Live assembly obfuscation audit" -ForegroundColor Cyan

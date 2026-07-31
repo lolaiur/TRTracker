@@ -7,10 +7,11 @@ using UnityEngine.EventSystems;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using TRShared;
 
 namespace TRBarPlugin
 {
-    [BepInPlugin("com.lolaiur.trbar", "TRBar", "1.3.1")]
+    [BepInPlugin("com.lolaiur.trbar", "TRBar", "2.0.0")]
     [BepInProcess("TravellersRest.exe")]
     public class TRBarPlugin : BaseUnityPlugin
     {
@@ -22,8 +23,8 @@ namespace TRBarPlugin
             Directory.CreateDirectory(logDir);
             LogPath = Path.Combine(logDir, "bar_debug.txt");
             try { File.Delete(LogPath); } catch {}
-            File.WriteAllText(LogPath, "TRBar 1.3.1\n");
-            Logger.LogInfo("TRBar 1.3.1");
+            File.WriteAllText(LogPath, "TRBar 2.0.0\n");
+            Logger.LogInfo("TRBar 2.0.0");
             
             // Cleanup old
             var old = FindObjectOfType<BarTrackerManager>();
@@ -123,10 +124,11 @@ namespace TRBarPlugin
             public string Name;
             public int Qty;
             public int Max;
-            public float FlowRate; 
+            public float FlowRate;
             public int Id;
             public int PreviousQty;
             public string Color;
+            public bool Special;
         }
 
         private class FoodData
@@ -134,6 +136,9 @@ namespace TRBarPlugin
             public string Name;
             public int Qty;
             public object ItemRef;
+            public float FlowRate;
+            public int PreviousQty;
+            public bool Special;
         }
 
         private List<KegData> _kegs = new List<KegData>();
@@ -285,7 +290,7 @@ namespace TRBarPlugin
                     hTitle.transform.SetParent(header.transform, false);
                     Text ht = hTitle.AddComponent<Text>();
                     if (uiFont != null) ht.font = uiFont;
-                    ht.text = "TR BAR TRACKER 1.3.1 (F3)";
+                    ht.text = "TR BAR TRACKER 2.0.0 (F3)";
                     ht.alignment = TextAnchor.MiddleCenter;
                     ht.color = new Color(1f, 0.8f, 0.4f);
                     ht.fontSize = 14;
@@ -573,26 +578,34 @@ namespace TRBarPlugin
                     if (currentMap.TryGetValue(uniqueId, out oldData))
                     {
                         int diff = oldData.PreviousQty - qty;
-                        if (diff > 0 && isOpen && diff < 20) rate = diff * (60f / _updateInterval);
-                        
-                        if (diff == 0) rate = Mathf.Lerp(oldData.FlowRate, 0f, 0.1f);
-                        else rate = Mathf.Lerp(oldData.FlowRate, rate, 0.5f);
+                        if (diff < 0) {
+                            // qty went up (refill/restock, e.g. by the autoloader) — resync the
+                            // baseline without treating it as a flow event, so a refill does not
+                            // zero the measured rate.
+                            rate = oldData.FlowRate;
+                        } else {
+                            if (diff > 0 && isOpen && diff < 20) rate = diff * (60f / _updateInterval);
+                            if (diff == 0) rate = Mathf.Lerp(oldData.FlowRate, 0f, 0.1f);
+                            else rate = Mathf.Lerp(oldData.FlowRate, rate, 0.5f);
+                        }
 
                         oldData.PreviousQty = qty;
                         oldData.Qty = qty;
                         oldData.FlowRate = rate;
                         oldData.Name = name;
-                        oldData.Color = colorHex; 
+                        oldData.Color = colorHex;
+                        oldData.Special = IsSpecialItem(slot.itemInstance);
                         _kegs.Add(oldData);
                     }
                     else
                     {
-                        _kegs.Add(new KegData { Id = uniqueId, Name = name, Qty = qty, Max = 20, PreviousQty = qty, FlowRate = 0, Color = colorHex });
+                        _kegs.Add(new KegData { Id = uniqueId, Name = name, Qty = qty, Max = 20, PreviousQty = qty, FlowRate = 0, Color = colorHex, Special = IsSpecialItem(slot.itemInstance) });
                     }
                 }
                 _kegs.Sort((a,b) => a.Name.CompareTo(b.Name));
 
                 // --- 3. Track Food ---
+                var foodMap = _food.ToDictionary(f => f.Name, f => f); // previous scan, for flow rate
                 _food.Clear();
                 // barInv is already initialized above for the dump logic
                 if (barInv != null && barInv.slots != null)
@@ -630,11 +643,30 @@ namespace TRBarPlugin
                             if (counts.ContainsKey(name)) {
                                 counts[name].Qty += stack;
                             } else {
-                                counts[name] = new FoodData { Name = name, Qty = stack, ItemRef = slot.itemInstance };
+                                counts[name] = new FoodData { Name = name, Qty = stack, ItemRef = slot.itemInstance, Special = IsSpecialItem(slot.itemInstance) };
                             }
                         }
                     }
-                    foreach (var foodData in counts.Values) _food.Add(foodData);
+                    foreach (var foodData in counts.Values) {
+                        // Flow rate (refill-tolerant, same approach as taps).
+                        FoodData prev;
+                        if (foodMap.TryGetValue(foodData.Name, out prev)) {
+                            int diff = prev.PreviousQty - foodData.Qty;
+                            float rate;
+                            if (diff < 0) rate = prev.FlowRate;
+                            else {
+                                if (diff > 0 && isOpen && diff < 50) rate = diff * (60f / _updateInterval); else rate = 0f;
+                                if (diff == 0) rate = Mathf.Lerp(prev.FlowRate, 0f, 0.1f);
+                                else rate = Mathf.Lerp(prev.FlowRate, rate, 0.5f);
+                            }
+                            foodData.PreviousQty = foodData.Qty;
+                            foodData.FlowRate = rate;
+                        } else {
+                            foodData.PreviousQty = foodData.Qty;
+                            foodData.FlowRate = 0f;
+                        }
+                        _food.Add(foodData);
+                    }
                 }
 
             } catch (Exception ex) {
@@ -668,12 +700,14 @@ namespace TRBarPlugin
                         dot = "<size=18><color=" + k.Color + ">●</color></size> ";
                     }
 
-                    _sb.AppendLine(string.Format("{0}{1,-15} <color={2}>{3,5}</color> {4,5:F1}", dot, k.Name.Length>15?k.Name.Substring(0,14):k.Name, c, qty, k.FlowRate));
+                    string tapName = k.Name.Length>15 ? k.Name.Substring(0,14) : k.Name;
+                    if (k.Special) tapName = "<color=#FFA500>" + tapName + "</color>"; // event-special
+                    _sb.AppendLine(string.Format("{0}{1,-15} <color={2}>{3,5}</color> {4,5:F1}", dot, tapName, c, qty, k.FlowRate));
                 }
                 
                 _sb.AppendLine();
                 _sb.AppendLine("--------------------------");
-                _sb.AppendLine("<size=13><b>FOOD</b></size>");
+                _sb.AppendLine("<size=13><b>FOOD (Flow/min)</b></size>");
                 foreach (var f in _food)
                 {
                      if (f.Name == "Unknown" || f.Qty <= 0) continue;
@@ -683,7 +717,9 @@ namespace TRBarPlugin
                      if ((string.IsNullOrEmpty(dispName) || dispName == "Unknown") && !string.IsNullOrEmpty(f.Name)) {
                          dispName = f.Name; 
                      }
-                     _sb.AppendLine(string.Format("{0,-20} {1,5}", dispName.Length>20?dispName.Substring(0,19):dispName, f.Qty));
+                     string foodName = dispName.Length>20 ? dispName.Substring(0,19) : dispName;
+                     if (f.Special) foodName = "<color=#FFA500>" + foodName + "</color>"; // event-special
+                     _sb.AppendLine(string.Format("{0,-20} {1,5} {2,5:F1}", foodName, f.Qty, f.FlowRate));
                 }
                 _mainText.text = _sb.ToString();
             } catch {
@@ -693,17 +729,57 @@ namespace TRBarPlugin
         
 
 
+        private float _nextHalloweenCheckTime;
+        private bool _cachedHalloweenActive;
+        private bool IsHalloweenActive()
+        {
+            if (Time.unscaledTime < _nextHalloweenCheckTime) return _cachedHalloweenActive;
+            _nextHalloweenCheckTime = Time.unscaledTime + 10f;
+            _cachedHalloweenActive = FindObjectOfType<HalloweenEvent>() != null;
+            return _cachedHalloweenActive;
+        }
+
+        // Cached FieldInfo for ItemInstance.item per runtime type, to avoid walking the type
+        // hierarchy on every GetItemName / IsSpecialItem call (these run per tap and per food item
+        // each update cycle).
+        private static readonly Dictionary<Type, FieldInfo> _itemFieldCache = new Dictionary<Type, FieldInfo>();
+        private static FieldInfo _itemNameIdField;
+        private static FieldInfo _itemIdField;
+        private static FieldInfo GetCachedItemField(object itemInstance)
+        {
+            if (itemInstance == null) return null;
+            Type type = itemInstance.GetType();
+            FieldInfo field;
+            if (!_itemFieldCache.TryGetValue(type, out field))
+            {
+                Type t = type;
+                while (t != null && field == null)
+                {
+                    field = t.GetField("item", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                    t = t.BaseType;
+                }
+                _itemFieldCache[type] = field;
+            }
+            return field;
+        }
+
+        // An item is "special" while its event is active (halloween food during halloween).
+        private bool IsSpecialItem(object itemInstance)
+        {
+            if (itemInstance == null || !IsHalloweenActive()) return false;
+            try {
+                FieldInfo fItem = GetCachedItemField(itemInstance);
+                if (fItem == null) return false;
+                Food food = fItem.GetValue(itemInstance) as Food;
+                return food != null && food.halloweenFood;
+            } catch { return false; }
+        }
+
         private string GetItemName(object itemInstance)
         {
             if (itemInstance == null) return "Unknown";
             try {
-                // Get 'item' field from ItemInstance (Base class)
-                Type t = itemInstance.GetType();
-                FieldInfo fItem = null;
-                while (t != null && fItem == null) {
-                    fItem = t.GetField("item", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                    t = t.BaseType;
-                }
+                FieldInfo fItem = GetCachedItemField(itemInstance);
 
                 if (fItem != null) {
                     object itemObj = fItem.GetValue(itemInstance);
@@ -711,7 +787,8 @@ namespace TRBarPlugin
                         
                         // 1. Try Native Localization (nameId -> LocalisationSystem)
                         try {
-                            FieldInfo fNameId = itemObj.GetType().GetField("nameId", BindingFlags.Public | BindingFlags.Instance);
+                            if (_itemNameIdField == null) _itemNameIdField = typeof(Item).GetField("nameId", BindingFlags.Public | BindingFlags.Instance);
+                            FieldInfo fNameId = _itemNameIdField;
                             if (fNameId != null) {
                                 string locKey = (string)fNameId.GetValue(itemObj);
                                 if (!string.IsNullOrEmpty(locKey)) {
@@ -721,7 +798,8 @@ namespace TRBarPlugin
                             }
                             
                             // 1b. Try ID-based keys (Items/item_name_{id})
-                            FieldInfo fId = itemObj.GetType().GetField("id", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                            if (_itemIdField == null) _itemIdField = typeof(Item).GetField("id", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                            FieldInfo fId = _itemIdField;
                             if (fId != null) {
                                 int idVal = (int)fId.GetValue(itemObj);
                                 string idKey = "Items/item_name_" + idVal;
@@ -743,87 +821,4 @@ namespace TRBarPlugin
         }
     }
 
-    public static class WindowLayerUtil
-    {
-        public static void BringToFront(Component component)
-        {
-            if (component == null) return;
-
-            Canvas rootCanvas = component.GetComponentInParent<Canvas>();
-            if (rootCanvas != null && rootCanvas.isRootCanvas)
-            {
-                rootCanvas.overrideSorting = true;
-                rootCanvas.sortingOrder = 1000 + (int)((DateTime.UtcNow.Ticks / TimeSpan.TicksPerMillisecond) % 100000);
-            }
-
-            RectTransform rect = component.GetComponent<RectTransform>();
-            if (rect != null) rect.SetAsLastSibling();
-        }
-    }
-
-    public class WindowPointerFocus : MonoBehaviour, UnityEngine.EventSystems.IPointerDownHandler
-    {
-        public void OnPointerDown(UnityEngine.EventSystems.PointerEventData data)
-        {
-            WindowLayerUtil.BringToFront(this);
-        }
-    }
-
-    /// <summary>Handles window dragging via header.</summary>
-    public class WindowDestroyer : MonoBehaviour, UnityEngine.EventSystems.IDragHandler, UnityEngine.EventSystems.IPointerDownHandler
-    {
-        public RectTransform TargetMover;
-        public void OnPointerDown(UnityEngine.EventSystems.PointerEventData data) {
-            WindowLayerUtil.BringToFront(this);
-        }
-        public void OnDrag(UnityEngine.EventSystems.PointerEventData data) {
-            WindowLayerUtil.BringToFront(this);
-            if (TargetMover) TargetMover.anchoredPosition += data.delta;
-        }
-    }
-
-    /// <summary>Handles window resizing via bottom-right corner grip.</summary>
-    public class ResizeHandler : MonoBehaviour, UnityEngine.EventSystems.IDragHandler, UnityEngine.EventSystems.IPointerDownHandler
-    {
-        public RectTransform PanelRect;
-        public Vector2 MinSize = new Vector2(200, 150);
-        public Vector2 MaxSize = new Vector2(800, 800);
-
-        public void OnPointerDown(UnityEngine.EventSystems.PointerEventData data) {
-            WindowLayerUtil.BringToFront(this);
-        }
-
-        public void OnDrag(UnityEngine.EventSystems.PointerEventData data) {
-            WindowLayerUtil.BringToFront(this);
-            if (PanelRect == null) return;
-            Vector2 size = PanelRect.sizeDelta;
-            size.x += data.delta.x;
-            size.y -= data.delta.y;
-            size.x = Mathf.Clamp(size.x, MinSize.x, MaxSize.x);
-            size.y = Mathf.Clamp(size.y, MinSize.y, MaxSize.y);
-            PanelRect.sizeDelta = size;
-        }
-    }
-
-    public class CollapseHandler : MonoBehaviour
-    {
-        public RectTransform PanelRect;
-        public GameObject ContentObj;
-        public float ExpandedHeight;
-        public float CollapsedHeight;
-        public bool IsCollapsed = false;
-        public Text Label;
-        
-        public void OnToggle()
-        {
-            IsCollapsed = !IsCollapsed;
-            if (PanelRect) {
-                PanelRect.sizeDelta = new Vector2(PanelRect.sizeDelta.x, IsCollapsed ? CollapsedHeight : ExpandedHeight);
-            }
-            if (ContentObj) {
-                ContentObj.SetActive(!IsCollapsed);
-            }
-            if (Label != null) Label.text = IsCollapsed ? "+" : "-";
-        }
-    }
 }

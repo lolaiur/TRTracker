@@ -118,10 +118,10 @@ function Compile-Mod([string[]]$SourceFiles, $DllName) {
 }
 
 # Execute
-Compile-Mod @("Plugins\TRTrackerPlugin\TRTrackerPlugin.cs") "TRTracker.dll"
-Compile-Mod @("Plugins\TRBarrelsPlugin\TRBarrelsPlugin.cs") "TRBarrels.dll"
-Compile-Mod @("Plugins\TRBarPlugin\TRBarPlugin.cs") "TRBar.dll"
-Compile-Mod @("Plugins\TRStatsPlugin\TRStatsPlugin.cs", "Plugins\TRStatsPlugin\Patches.cs") "TRStats.dll"
-Compile-Mod @("Plugins\TRAutoloaderPlugin\TRAutoloaderPlugin.cs") "TRAutoloader.dll"
+Compile-Mod @("Plugins\TRTrackerPlugin\TRTrackerPlugin.cs", "Shared\TRWindowKit.cs") "TRTracker.dll"
+Compile-Mod @("Plugins\TRBarrelsPlugin\TRBarrelsPlugin.cs", "Shared\TRWindowKit.cs") "TRBarrels.dll"
+Compile-Mod @("Plugins\TRBarPlugin\TRBarPlugin.cs", "Shared\TRWindowKit.cs") "TRBar.dll"
+Compile-Mod @("Plugins\TRStatsPlugin\TRStatsPlugin.cs", "Plugins\TRStatsPlugin\Patches.cs", "Shared\TRWindowKit.cs") "TRStats.dll"
+Compile-Mod @("Plugins\TRAutoloaderPlugin\TRAutoloaderPlugin.cs", "Shared\TRWindowKit.cs") "TRAutoloader.dll"
 
 Stop-Transcript

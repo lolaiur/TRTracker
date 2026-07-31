@@ -8,10 +8,11 @@ using BepInEx.Configuration;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
+using TRShared;
 
 namespace TRAutoloaderPlugin
 {
-    [BepInPlugin("com.lolaiur.trautoloader", "TR Autoloader", "1.2.0")]
+    [BepInPlugin("com.lolaiur.trautoloader", "TR Autoloader", "2.0.0")]
     [BepInProcess("TravellersRest.exe")]
     public class Plugin : BaseUnityPlugin
     {
@@ -34,8 +35,8 @@ namespace TRAutoloaderPlugin
             LogPath = Path.Combine(logDir, "autoload_debug.txt");
             // Append (do not wipe) so test data survives game restarts for diagnosis.
             try { File.Delete(LogPath); } catch { }
-            File.WriteAllText(LogPath, "TR Autoloader 1.2.0\n");
-            Logger.LogInfo("TR Autoloader 1.2.0");
+            File.WriteAllText(LogPath, "TR Autoloader 2.0.0\n");
+            Logger.LogInfo("TR Autoloader 2.0.0");
 
             ToggleUIKey = Config.Bind("UI", "ToggleKey", KeyCode.F5,
                 "Key to toggle the autoloader UI");
@@ -269,7 +270,7 @@ namespace TRAutoloaderPlugin
                 hTitle.transform.SetParent(header.transform, false);
                 Text ht = hTitle.AddComponent<Text>();
                 ht.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-                ht.text = "TR AUTOLOADER 1.2.0 (F5)";
+                ht.text = "TR AUTOLOADER 2.0.0 (F5)";
                 ht.alignment = TextAnchor.MiddleCenter;
                 ht.color = new Color(1f, 0.8f, 0.4f);
                 ht.fontSize = 14;
@@ -600,7 +601,6 @@ namespace TRAutoloaderPlugin
         private static DrinkDispenser[] _cachedDispensers = new DrinkDispenser[0];
         private static BanquetBarrel[] _cachedBanquetBarrels = new BanquetBarrel[0];
         private static TavernZonesManager _cachedZoneManager;
-        private static readonly Dictionary<long, int> _observedDrinkCaps = new Dictionary<long, int>();
         private static readonly HashSet<long> _drinkCompatibilityCache = new HashSet<long>();
         private static readonly Dictionary<long, float> _drinkRejectCooldowns = new Dictionary<long, float>();
         private static readonly Dictionary<string, MethodInfo> _itemCloneMethodCache = new Dictionary<string, MethodInfo>();
@@ -614,20 +614,6 @@ namespace TRAutoloaderPlugin
         private static readonly MethodInfo PlaceableUniqueIdGetter = typeof(Placeable).GetMethod("get_uniqueId", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
         private static readonly PropertyInfo ItemContainerPlaceableProperty = AutoloaderReflection.FindInstancePropertyByType<ItemContainer, Placeable>();
 
-        public static void Reset()
-        {
-            _nextRunTime = 0f;
-            _nextDispenserScanTime = 0f;
-            _nextFoodIdleLogTime = 0f;
-            _nextDrinkIdleLogTime = 0f;
-            _cachedDispensers = new DrinkDispenser[0];
-            _cachedBanquetBarrels = new BanquetBarrel[0];
-            _cachedZoneManager = null;
-            _observedDrinkCaps.Clear();
-            _drinkCompatibilityCache.Clear();
-            _drinkRejectCooldowns.Clear();
-        }
-
         public static void NotifySceneLoaded(string sceneName)
         {
             _cachedFoodLoader = null;
@@ -638,7 +624,6 @@ namespace TRAutoloaderPlugin
             _nextDispenserScanTime = 0f;
             _nextFoodIdleLogTime = 0f;
             _nextDrinkIdleLogTime = 0f;
-            _observedDrinkCaps.Clear();
             _drinkCompatibilityCache.Clear();
             _drinkRejectCooldowns.Clear();
             _nextRunTime = string.Equals(sceneName, "Gameplay", StringComparison.Ordinal)
@@ -691,6 +676,9 @@ namespace TRAutoloaderPlugin
         {
             try {
                 if (Plugin.AutoLoadEnabled != null && !Plugin.AutoLoadEnabled.Value) return;
+                // In multiplayer, only the host (master client) runs the loader so transfers happen
+                // once and propagate to the other player, instead of both clients duplicating them.
+                if (OnlineManager.PlayingOnline() && !OnlineManager.IsMasterClient()) return;
 
                 VerboseDrinkDebug = Plugin.VerboseDebug != null && Plugin.VerboseDebug.Value;
 
@@ -809,6 +797,22 @@ namespace TRAutoloaderPlugin
                 currentCounts[itemId] = currentCount + 1;
             }
 
+            // Smart-fill: stock any empty bar-menu slots with a priority-chosen food (special event
+            // item first, then highest revenue). Prefers diversity (different food per slot) but
+            // falls back to duplicates if there aren't enough unique items.
+            if (moved < MaxFoodMovesPerTick) {
+                bool halloweenActive = IsHalloweenActive();
+                HashSet<int> placedIds = new HashSet<int>();
+                while (moved < MaxFoodMovesPerTick) {
+                    Slot source = PickBestSourceSlot(loader, false, halloweenActive, placedIds);
+                    if (source == null) source = PickBestSourceSlot(loader, false, halloweenActive, null);
+                    if (source == null) break;
+                    if (!TryMoveOneItem(loader, barInventory, source)) break;
+                    placedIds.Add(GetItemId(source.itemInstance));
+                    moved++;
+                }
+            }
+
             if (moved == 0) {
                 if (transferFailed) {
                     LogFoodIdle("Food tick idle: matching food source was found, but transfer failed.");
@@ -913,6 +917,38 @@ namespace TRAutoloaderPlugin
                 }
             }
 
+            // Smart-fill: fill still-empty dispenser/keg slots with a priority-chosen drink
+            // (special event item first, then highest revenue), one different drink per dispenser
+            // for diversity. Tries AddItemInstance first (safe); if the dispenser's filter rejects
+            // it, falls back to direct slot transfer (fills the slot but may cause duplication
+            // where served drinks are not consumed — accepted tradeoff per user request).
+            if (unitsMoved < MaxDrinkUnitsPerTick && dispensers != null) {
+                bool halloweenActive = IsHalloweenActive();
+                HashSet<int> placedIds = new HashSet<int>();
+                foreach (DrinkDispenser dispenser in dispensers) {
+                    if (unitsMoved >= MaxDrinkUnitsPerTick) break;
+                    if (!IsDrinkTargetUsable(dispenser)) continue;
+                    Slot slot = GetDispenserSlot(dispenser);
+                    if (slot == null || slot.itemInstance != null) continue; // only empty target slots
+                    Slot source = PickBestSourceSlot(loader, true, halloweenActive, placedIds);
+                    if (source == null) source = PickBestSourceSlot(loader, true, halloweenActive, null);
+                    if (source == null) break;
+
+                    bool filled = TryMoveOneItem(loader, dispenser, source);
+                    if (!filled) {
+                        // AddItemInstance was rejected by the dispenser filter. Fall back to direct
+                        // slot transfer (may cause duplication on serve — accepted tradeoff).
+                        filled = TryMoveItemUnits(loader, dispenser, slot, source, Mathf.Min(MaxDrinkUnitsPerTick - unitsMoved, 20), true) > 0;
+                        if (filled) RecordAction("Smart-fill used direct transfer for " + GetItemLabel(source.itemInstance) + " (duplication risk).");
+                    }
+                    if (filled) {
+                        placedIds.Add(GetItemId(source.itemInstance));
+                        unitsMoved++;
+                    }
+                    // Don't break on failure — a different source may work for the next dispenser.
+                }
+            }
+
             if (VerboseDrinkDebug) {
                 LogDrinkDebug(string.Format("Drink tick end. UsableTargets={0}. UnitsMoved={1}.",
                     usableTargets,
@@ -980,7 +1016,7 @@ namespace TRAutoloaderPlugin
             if (candidateId <= 0) return 0;
 
             if (drinkSlot.itemInstance != null && currentAmount <= 0) {
-                Slot removedEmpty = target.RemoveItemInstance(drinkSlot.itemInstance, false);
+                Slot removedEmpty = target.RemoveItemInstance(drinkSlot.itemInstance, true);
                 if (removedEmpty == null) {
                     if (VerboseDrinkDebug) LogDrinkDebug("Failed to clear empty item from " + targetLabel + " at " + FormatPosition(target.transform.position) + ".");
                     return 0;
@@ -1009,6 +1045,10 @@ namespace TRAutoloaderPlugin
                     DescribeItemInstance(sourceSlot.itemInstance),
                     movedNow));
             }
+
+            // Direct slot writes (drink dispensers/kegs) bypass AddItemInstance, so sync the slot
+            // explicitly so the other player sees the fill in multiplayer.
+            if (movedNow > 0) SyncSlot(drinkSlot);
 
             return movedNow;
         }
@@ -1179,7 +1219,7 @@ namespace TRAutoloaderPlugin
                 return false;
             }
 
-            Slot removedSlot = source.RemoveItemInstance(sourceSlot.itemInstance, false);
+            Slot removedSlot = source.RemoveItemInstance(sourceSlot.itemInstance, true);
             if (removedSlot != null) {
                 NotifyDrinkTargetChanged(target);
                 return true;
@@ -1227,7 +1267,7 @@ namespace TRAutoloaderPlugin
             }
 
             bool isDrinkTarget = target is DrinkDispenser || target is BanquetBarrel;
-            Slot addedSlot = target.AddItemInstance(1, clone, true, false);
+            Slot addedSlot = target.AddItemInstance(1, clone, true, true);
             if (addedSlot == null) {
                 if (isDrinkTarget) {
                     Slot targetSlot = target.slots != null && target.slots.Length > 0 ? target.slots[0] : null;
@@ -1236,7 +1276,6 @@ namespace TRAutoloaderPlugin
                         int cloneItemId = GetItemId(clone);
                         int currentAmount = GetDrinkAmount(targetSlot);
                         if (targetItemId > 0 && targetItemId == cloneItemId && currentAmount > 0) {
-                            RememberObservedDrinkCap(target, targetSlot.itemInstance, currentAmount);
                             return false;
                         }
                     }
@@ -1246,10 +1285,10 @@ namespace TRAutoloaderPlugin
                 return false;
             }
 
-            Slot removedSlot = source.RemoveItemInstance(sourceSlot.itemInstance, false);
+            Slot removedSlot = source.RemoveItemInstance(sourceSlot.itemInstance, true);
             if (removedSlot != null) return true;
 
-            target.RemoveItemInstance(clone, false);
+            target.RemoveItemInstance(clone, true);
             Log("Autoloader rollback: source removal failed for " + GetItemLabel(sourceSlot.itemInstance));
             return false;
         }
@@ -1281,27 +1320,12 @@ namespace TRAutoloaderPlugin
             return _cachedBanquetBarrels;
         }
 
-        private static void RememberObservedDrinkCap(Container target, ItemInstance instance, int amount)
+        // Push a slot's state to the other player in multiplayer (used after direct slot writes that
+        // bypass Container.AddItemInstance, which would otherwise sync itself).
+        private static void SyncSlot(Slot slot)
         {
-            long key = GetDrinkCacheKey(target, instance);
-            if (key == 0L || amount <= 0) return;
-
-            int existing;
-            if (_observedDrinkCaps.TryGetValue(key, out existing) && existing > 0) {
-                _observedDrinkCaps[key] = Mathf.Min(existing, amount);
-                return;
-            }
-
-            _observedDrinkCaps[key] = amount;
-        }
-
-        private static int GetObservedDrinkCap(Container target, ItemInstance instance)
-        {
-            long key = GetDrinkCacheKey(target, instance);
-            if (key == 0L) return 0;
-
-            int amount;
-            return _observedDrinkCaps.TryGetValue(key, out amount) ? amount : 0;
+            if (slot == null || !OnlineManager.PlayingOnline()) return;
+            try { OnlineSlotsManager.instance.SendSlot(slot); } catch { }
         }
 
         private static long GetDrinkCacheKey(Container target, ItemInstance instance)
@@ -1620,6 +1644,55 @@ namespace TRAutoloaderPlugin
             catch {
                 return -1;
             }
+        }
+
+        private static float _nextHalloweenCheckTime;
+        private static bool _cachedHalloweenActive;
+        private static bool IsHalloweenActive()
+        {
+            if (Time.unscaledTime < _nextHalloweenCheckTime) return _cachedHalloweenActive;
+            _nextHalloweenCheckTime = Time.unscaledTime + 10f;
+            _cachedHalloweenActive = UnityEngine.Object.FindObjectOfType<HalloweenEvent>() != null;
+            return _cachedHalloweenActive;
+        }
+
+        private static bool IsSpecialItem(ItemInstance instance)
+        {
+            Food food = GetInstanceItem(instance) as Food;
+            return food != null && food.halloweenFood;
+        }
+
+        // Pick the best source slot from the loader to fill an EMPTY target, by priority: event-special
+        // items first (halloween food while halloween is active), then highest revenue. `drinks` selects
+        // loose-drink sources; otherwise food (FoodInstance) sources.
+        private static Slot PickBestSourceSlot(ItemContainer loader, bool drinks, bool halloweenActive, HashSet<int> excludedIds)
+        {
+            if (loader == null || loader.slots == null) return null;
+
+            Slot best = null;
+            long bestScore = long.MinValue;
+
+            foreach (Slot slot in loader.slots)
+            {
+                if (slot == null || slot.itemInstance == null || slot.Stack <= 0) continue;
+                if (drinks ? !IsLooseDrinkInstance(slot.itemInstance) : !(slot.itemInstance is FoodInstance)) continue;
+
+                // Diversity: skip items already placed in this smart-fill pass so each container
+                // gets a different drink/food.
+                int itemId = GetItemId(slot.itemInstance);
+                if (excludedIds != null && itemId > 0 && excludedIds.Contains(itemId)) continue;
+
+                bool special = halloweenActive && IsSpecialItem(slot.itemInstance);
+                int revenue = GetInstanceValue(slot.itemInstance);
+                long score = (special ? 1000000L : 0L) + revenue;
+                if (best == null || score > bestScore)
+                {
+                    best = slot;
+                    bestScore = score;
+                }
+            }
+
+            return best;
         }
 
         private static int GetInstanceValue(ItemInstance instance)
@@ -2106,64 +2179,12 @@ namespace TRAutoloaderPlugin
         }
     }
 
-    public static class WindowLayerUtil
+    public static class PluginInfo
     {
-        public static void BringToFront(Component component)
-        {
-            if (component == null) return;
-
-            Canvas rootCanvas = component.GetComponentInParent<Canvas>();
-            if (rootCanvas != null && rootCanvas.isRootCanvas) {
-                rootCanvas.overrideSorting = true;
-                rootCanvas.sortingOrder = 1000 + (int)((DateTime.UtcNow.Ticks / TimeSpan.TicksPerMillisecond) % 100000);
-            }
-
-            RectTransform rect = component.GetComponent<RectTransform>();
-            if (rect != null) rect.SetAsLastSibling();
-        }
-    }
-
-    public class WindowPointerFocus : MonoBehaviour, IPointerDownHandler
-    {
-        public void OnPointerDown(PointerEventData data)
-        {
-            WindowLayerUtil.BringToFront(this);
-        }
-    }
-
-    public class WindowDragger : MonoBehaviour, IDragHandler, IPointerDownHandler
-    {
-        public RectTransform TargetRect;
-        public void OnPointerDown(PointerEventData data)
-        {
-            WindowLayerUtil.BringToFront(this);
-        }
-        public void OnDrag(PointerEventData data)
-        {
-            WindowLayerUtil.BringToFront(this);
-            if (TargetRect != null) TargetRect.anchoredPosition += data.delta;
-        }
-    }
-
-    public class CollapseHandler : MonoBehaviour
-    {
-        public RectTransform PanelRect;
-        public GameObject ContentObj;
-        public float ExpandedHeight;
-        public float CollapsedHeight;
-        public bool IsCollapsed = false;
-        public Text Label;
-
-        public void OnToggle()
-        {
-            IsCollapsed = !IsCollapsed;
-            if (PanelRect != null) {
-                PanelRect.sizeDelta = new Vector2(PanelRect.sizeDelta.x, IsCollapsed ? CollapsedHeight : ExpandedHeight);
-            }
-            if (ContentObj != null) {
-                ContentObj.SetActive(!IsCollapsed);
-            }
-            if (Label != null) Label.text = IsCollapsed ? "+" : "-";
-        }
+        public const string PLUGIN_GUID = "com.lolaiur.trautoloader";
+        public const string PLUGIN_NAME = "TR Autoloader";
+        public const string PLUGIN_VERSION = "2.0.0";
     }
 }
+
+

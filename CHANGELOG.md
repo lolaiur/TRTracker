@@ -1,5 +1,40 @@
 # Changelog
 
+## 2.0.0 (unreleased) — post-push fixes
+
+### Bug fixes
+- Fixed drink duplication: empty-drink-fill used direct slot transfer which bypassed the game's item tracking, causing bartenders to serve without consuming (extra drinks in player and multiplayer inventories). Now uses the game's AddItemInstance path so items are properly registered and consumed on serve.
+
+### Improvements
+- Diversity over price: the smart-fill now places a different drink/food in each empty container/slot (tracked by item ID), prioritizing higher-value items but ensuring no two containers get the same item. If the loader only has one type, only one container is filled and the rest stay empty rather than stacking duplicates.
+
+### Aging tracker (TRBarrels)
+- Fixed quality items showing wrong aging stage. The stage scanner was picking up int properties from the item (including quality properties, e.g. "two dots" = value 2) and interpreting them as aging stages, showing unaged quality items as "Young" or "Normal". Now computes aging progress from the barrel's timer FIRST, and only scans item properties for stage if the item is actually aging (progress > 0). Unaged items always show "Unaged".
+
+In-progress major update on a local branch; not yet shipped.
+
+### Performance
+- TRBar: cached the per-item reflection that walks the type hierarchy for the `item` field on every tap and food item each update cycle (GetItemName and IsSpecialItem). The FieldInfo is now looked up once per runtime type and reused, and the `nameId` / `id` fields on Item are cached statically. This eliminates the most frequent reflection in the bar tracker.
+- Other mods assessed: TRAutoloader already caches the zone-manager singleton, price fields, and clone methods; TRTracker uses a singleton cache cleared on scene load; TRStats and TRBarrels are light.
+- TRAutoloader: removed the dead "observed drink cap" cluster (`_observedDrinkCaps`, `RememberObservedDrinkCap`, `GetObservedDrinkCap`). `GetDrinkTargetMax` stopped reading it in 1.0.9, so the store was being written but never consumed.
+- TRAutoloader: removed the dead `Reset()` method (never called; `NotifySceneLoaded` already does the same cache clears).
+- Compiler sweep across all mods confirmed no unused fields or locals remain.
+
+### Performance
+- TRTracker: the 0.25s refresh no longer re-resolves its reflected members every tick. The WorldTime type lookup and the TavernReputation level, TavernManager heat, and TavernManager dirt property lookups (each of which iterated every member of the type via FindInstancePropertyByType) are now cached after first use, removing that iteration from the hot path.
+
+### Cheats
+- "Fill Animal Water" is now "Care for Animals" and also fills food troughs (AnimalFeederFood and AnimalFeederChicken) up to each feeder's max using its allowed food. A reflection-based item factory (finds the no-arg ItemInstance method on Item) is used so the obfuscated factory name does not matter, and each feeder is guarded so a bad one cannot abort the rest.
+
+### Bar tracker (TRBar)
+- Flow rate is now refill-tolerant: when a tap's quantity goes up (a refill by the autoloader or a restock), the baseline resyncs without zeroing the measured rate, so drinks still being served keep showing a flow instead of dropping to 0.
+- Added a food flow rate (per minute) shown next to each food's quantity, tracked the same refill-tolerant way.
+- Event-special items (halloween food while halloween is active) are highlighted in orange in both the taps and food lists.
+
+### Autoloader
+- Smart-fill for empty slots. When a drink dispenser/keg target slot or a bar-menu food slot is empty, the loader now fills it by priority: event-special items first (halloween food while halloween is active), then the highest-revenue item from the loader. Non-empty dispensers and slots keep the "top off the same item, never mix" rule. Event-active is detected via the HalloweenEvent in-scene singleton (cached for 10s).
+- Multiplayer sync. In multiplayer the loader now runs only on the host (master client) and propagates its transfers to the other player: food/bar-menu moves use the container online flag, and direct drink-slot writes push via OnlineSlotsManager.SendSlot. Single-player is unchanged. Needs multiplayer testing.
+
 ## 2026-07-10 (3)
 
 ### TRStats 1.3.4

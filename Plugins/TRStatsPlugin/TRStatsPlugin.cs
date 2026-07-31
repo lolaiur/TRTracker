@@ -9,6 +9,7 @@ using HarmonyLib;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
+using TRShared;
 
 namespace TRStats
 {
@@ -39,8 +40,8 @@ namespace TRStats
             Directory.CreateDirectory(logDir);
             LogPath = Path.Combine(logDir, "trstats_debug.txt");
             try { File.Delete(LogPath); } catch { }
-            File.WriteAllText(LogPath, "TRStats 1.3.4\n");
-            Logger.LogInfo("TRStats 1.3.4");
+            File.WriteAllText(LogPath, "TRStats 2.0.0\n");
+            Logger.LogInfo("TRStats 2.0.0");
 
             // Initialize config
             PlayerSpeedMultiplier = Config.Bind("Player", "SpeedMultiplier", 1.0f,
@@ -295,7 +296,7 @@ namespace TRStats
                 hTitle.transform.SetParent(header.transform, false);
                 Text ht = hTitle.AddComponent<Text>();
                 ht.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-                ht.text = "TR CHEATS 1.3.4 (F4)";
+                ht.text = "TR CHEATS 2.0.0 (F4)";
                 ht.alignment = TextAnchor.MiddleCenter;
                 ht.color = new Color(1f, 0.8f, 0.4f);
                 ht.fontSize = 14;
@@ -461,7 +462,7 @@ namespace TRStats
                 yPos -= 10;
                 yPos = CreateButton(_contentObj.transform, "Water All Crops", yPos, delegate { WaterAllCrops(); });
                 yPos = CreateButton(_contentObj.transform, "Insta-Grow All Crops", yPos, delegate { InstaGrowAllCrops(); });
-                yPos = CreateButton(_contentObj.transform, "Fill Animal Water", yPos, delegate { CareForAnimals(); });
+                yPos = CreateButton(_contentObj.transform, "Care for Animals", yPos, delegate { CareForAnimals(); });
 
                 yPos -= 5;
                 yPos = CreateButton(_contentObj.transform, "Apply Speed", yPos, delegate { ApplyChanges(); });
@@ -840,7 +841,44 @@ namespace TRStats
                     }
                 }
 
-                File.AppendAllText(Plugin.LogPath, "Care for animals: filled " + water + " water feeders and " + henWater + " hen-house water feeders\n");
+                // Food troughs (AnimalFeederFood and AnimalFeederChicken). No public fill method, so
+                // add each feeder's allowed food to its container up to the max for its level.
+                int food = 0;
+                List<AnimalFeeder> foodFeeders = new List<AnimalFeeder>();
+                foreach (AnimalFeederFood ff in FindObjectsOfType<AnimalFeederFood>()) foodFeeders.Add(ff);
+                foreach (AnimalFeederChicken cf in FindObjectsOfType<AnimalFeederChicken>()) foodFeeders.Add(cf);
+                foreach (AnimalFeeder feeder in foodFeeders)
+                {
+                    if (feeder == null) continue;
+                    try {
+                        Container container = feeder.container;
+                        if (container == null) continue;
+                        Item[] allowed = container.allowedItemsList;
+                        if (allowed == null || allowed.Length == 0) continue;
+                        Item foodItem = allowed[0];
+                        int level = GetFeederLevel(feeder);
+                        int[] maxAmount = feeder.maxAmount;
+                        int max = (maxAmount != null && level >= 0 && level < maxAmount.Length) ? maxAmount[level] : 0;
+                        int current = container.GetNumberOfItems();
+                        int need = max > current ? max - current : 0;
+                        int added = 0;
+                        while (added < need) {
+                            ItemInstance foodInstance = CreateItemInstance(foodItem);
+                            if (foodInstance == null) break;
+                            Slot addedSlot = container.AddItemInstance(1, foodInstance, false, false);
+                            if (addedSlot == null) break; // rejected or full
+                            added++;
+                        }
+                        if (added > 0) {
+                            if (feeder.farmBuilding != null) { try { feeder.farmBuilding.UpdateAnimalsState(); } catch { } }
+                            food++;
+                        }
+                    } catch (Exception ex) {
+                        File.AppendAllText(Plugin.LogPath, "CareForAnimals food feeder error: " + ex.Message + "\n");
+                    }
+                }
+
+                File.AppendAllText(Plugin.LogPath, "Care for animals: filled " + water + " water feeders, " + henWater + " hen-house water feeders, and " + food + " food troughs\n");
             } catch (Exception ex) {
                 File.AppendAllText(Plugin.LogPath, "CareForAnimals Error: " + ex.Message + "\n");
             }
@@ -857,6 +895,29 @@ namespace TRStats
                 if (_feederLevelField != null) return (int)_feederLevelField.GetValue(feeder);
             } catch { }
             return 0;
+        }
+
+        private static MethodInfo _itemInstanceFactory;
+        // Create a fresh ItemInstance from an Item via the game's item factory (a public no-arg
+        // method on Item returning an ItemInstance, e.g. the obfuscated JMDALJBNFML). Found by
+        // signature so it survives obfuscation renames.
+        private static ItemInstance CreateItemInstance(Item item)
+        {
+            if (item == null) return null;
+            try {
+                if (_itemInstanceFactory == null) {
+                    foreach (MethodInfo m in typeof(Item).GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)) {
+                        if (m.GetParameters().Length != 0) continue;
+                        if (!typeof(ItemInstance).IsAssignableFrom(m.ReturnType)) continue;
+                        _itemInstanceFactory = m;
+                        break;
+                    }
+                }
+                if (_itemInstanceFactory == null) return null;
+                return _itemInstanceFactory.Invoke(item, null) as ItemInstance;
+            } catch {
+                return null;
+            }
         }
 
         void InstaGrowAllCrops()
@@ -1075,98 +1136,10 @@ namespace TRStats
         }
     }
 
-    public static class WindowLayerUtil
-    {
-        public static void BringToFront(Component component)
-        {
-            if (component == null) return;
-
-            Canvas rootCanvas = component.GetComponentInParent<Canvas>();
-            if (rootCanvas != null && rootCanvas.isRootCanvas)
-            {
-                rootCanvas.overrideSorting = true;
-                rootCanvas.sortingOrder = 1000 + (int)((DateTime.UtcNow.Ticks / TimeSpan.TicksPerMillisecond) % 100000);
-            }
-
-            RectTransform rect = component.GetComponent<RectTransform>();
-            if (rect != null) rect.SetAsLastSibling();
-        }
-    }
-
-    public class WindowPointerFocus : MonoBehaviour, IPointerDownHandler
-    {
-        public void OnPointerDown(PointerEventData data)
-        {
-            WindowLayerUtil.BringToFront(this);
-        }
-    }
-
-    public class WindowDragger : MonoBehaviour, IDragHandler, IPointerDownHandler
-    {
-        public RectTransform TargetRect;
-        public void OnPointerDown(PointerEventData data)
-        {
-            WindowLayerUtil.BringToFront(this);
-        }
-        public void OnDrag(PointerEventData data)
-        {
-            WindowLayerUtil.BringToFront(this);
-            if (TargetRect != null) TargetRect.anchoredPosition += data.delta;
-        }
-    }
-
-    public class ResizeHandler : MonoBehaviour, IDragHandler, IPointerDownHandler
-    {
-        public RectTransform PanelRect;
-        public Vector2 MinSize = new Vector2(300, 200);
-        public Vector2 MaxSize = new Vector2(600, 800);
-
-        public void OnPointerDown(PointerEventData data)
-        {
-            WindowLayerUtil.BringToFront(this);
-        }
-
-        public void OnDrag(PointerEventData data)
-        {
-            WindowLayerUtil.BringToFront(this);
-            if (PanelRect == null) return;
-            Vector2 size = PanelRect.sizeDelta;
-            size.x += data.delta.x;
-            size.y -= data.delta.y;
-            size.x = Mathf.Clamp(size.x, MinSize.x, MaxSize.x);
-            size.y = Mathf.Clamp(size.y, MinSize.y, MaxSize.y);
-            PanelRect.sizeDelta = size;
-        }
-    }
-
-    public class CollapseHandler : MonoBehaviour
-    {
-        public RectTransform PanelRect;
-        public GameObject ContentObj;
-        public float ExpandedHeight;
-        public float CollapsedHeight;
-        public bool IsCollapsed = false;
-        public Text Label;
-
-        public void OnToggle()
-        {
-            IsCollapsed = !IsCollapsed;
-            if (PanelRect != null)
-            {
-                PanelRect.sizeDelta = new Vector2(PanelRect.sizeDelta.x, IsCollapsed ? CollapsedHeight : ExpandedHeight);
-            }
-            if (ContentObj != null)
-            {
-                ContentObj.SetActive(!IsCollapsed);
-            }
-            if (Label != null) Label.text = IsCollapsed ? "+" : "-";
-        }
-    }
-
     public static class PluginInfo
     {
         public const string PLUGIN_GUID = "com.trstats.mod";
         public const string PLUGIN_NAME = "TR Stats";
-        public const string PLUGIN_VERSION = "1.3.4";
+        public const string PLUGIN_VERSION = "2.0.0";
     }
 }
