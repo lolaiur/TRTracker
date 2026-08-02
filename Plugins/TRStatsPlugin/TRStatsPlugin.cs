@@ -846,32 +846,41 @@ namespace TRStats
                 _extraBarSpaceGOs.Clear();
 
                 if (target <= 0 || target <= defaultLen) {
-                    // Restore to original.
+                    // Restore: preserve any occupier entries that fit in the original length.
+                    HumanNPC[] savedOccupier = bar.occupier;
                     bar.barSpaces = _originalBarSpaces;
-                    bar.occupier = new HumanNPC[bar.barSpaces.Length];
+                    bar.occupier = new HumanNPC[defaultLen];
+                    if (savedOccupier != null) {
+                        int copyLen = System.Math.Min(savedOccupier.Length, defaultLen);
+                        for (int i = 0; i < copyLen; i++) bar.occupier[i] = savedOccupier[i];
+                    }
                     return;
                 }
 
-                // Extend: clone the last barSpace position with small offsets for each new slot.
+                // Extend: reuse the last existing position for all new slots (stacking is fine,
+                // offsets caused pathfinding failures). Preserve existing occupier entries.
                 Transform[] newSpaces = new Transform[target];
                 for (int i = 0; i < defaultLen; i++) newSpaces[i] = _originalBarSpaces[i];
 
-                Vector3 lastPos = _originalBarSpaces[_originalBarSpaces.Length - 1].position;
-                Vector3 offsetDir = (_originalBarSpaces.Length >= 2)
-                    ? (_originalBarSpaces[_originalBarSpaces.Length - 1].position - _originalBarSpaces[_originalBarSpaces.Length - 2].position)
-                    : new Vector3(0.5f, 0, 0);
-                if (offsetDir == Vector3.zero) offsetDir = new Vector3(0.5f, 0, 0);
-
+                Transform lastSpace = _originalBarSpaces[defaultLen - 1];
                 for (int i = defaultLen; i < target; i++) {
                     GameObject go = new GameObject("ExtraBarSpace_" + i);
                     go.transform.SetParent(bar.transform, false);
-                    go.transform.position = lastPos + offsetDir * (i - defaultLen + 1);
+                    go.transform.position = lastSpace.position; // same spot — stacking, not offset
                     newSpaces[i] = go.transform;
                     _extraBarSpaceGOs.Add(go);
                 }
 
+                // Preserve existing occupier entries — wiping them breaks customer state.
+                HumanNPC[] oldOccupier = bar.occupier;
+                HumanNPC[] newOccupier = new HumanNPC[target];
+                if (oldOccupier != null) {
+                    int copyLen = System.Math.Min(oldOccupier.Length, target);
+                    for (int i = 0; i < copyLen; i++) newOccupier[i] = oldOccupier[i];
+                }
+
                 bar.barSpaces = newSpaces;
-                bar.occupier = new HumanNPC[target];
+                bar.occupier = newOccupier;
 
                 File.AppendAllText(Plugin.LogPath, "Bar spaces set to " + target + " (default " + defaultLen + ")\n");
             } catch (Exception ex) {
