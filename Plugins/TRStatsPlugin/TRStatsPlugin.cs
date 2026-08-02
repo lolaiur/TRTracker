@@ -31,6 +31,7 @@ namespace TRStats
         public static ConfigEntry<bool> InfiniteWater;
         public static ConfigEntry<bool> SkipMinePiecePoolPrewarm;
         public static ConfigEntry<int> ServeSpeedSeconds;
+        public static ConfigEntry<int> BarSpaceCount;
 
         void Awake()
         {
@@ -70,6 +71,10 @@ namespace TRStats
             ServeSpeedSeconds = Config.Bind("Bar", "ServeSpeedSeconds", 2,
                 new ConfigDescription("Barworker seconds per serve (1=fast, 25=slow). Applied to all barworkers.",
                     new AcceptableValueRange<int>(1, 25)));
+
+            BarSpaceCount = Config.Bind("Bar", "BarSpaceCount", 0,
+                new ConfigDescription("Total bar serving spaces (0 = game default). More spaces = more customers served simultaneously.",
+                    new AcceptableValueRange<int>(0, 25)));
 
             // Initialize patch-specific config
             Patches.InitializeConfig(Config);
@@ -134,6 +139,10 @@ namespace TRStats
         private Slider _workAvoidSlider;
         private Text _serveSpeedText;
         private Slider _serveSpeedSlider;
+        private Text _barSpaceText;
+        private Slider _barSpaceSlider;
+        private Transform[] _originalBarSpaces;
+        private List<GameObject> _extraBarSpaceGOs = new List<GameObject>();
         private Toggle _infiniteCoalToggle;
         private Toggle _infiniteWaterToggle;
         private Text _infoText;
@@ -171,6 +180,8 @@ namespace TRStats
                 if (_uiObj == null) CreateUI();
                 EnsureGameLoop();
                 ApplyServeSpeed();
+                _originalBarSpaces = null; // reset so it re-captures after scene load
+                ApplyBarSpaces();
             } catch { }
         }
 
@@ -463,6 +474,10 @@ namespace TRStats
                 yPos = CreateSliderRow(_contentObj.transform, "Serve Speed (s):", 1f, 25f, Plugin.ServeSpeedSeconds.Value, yPos, out _serveSpeedText, out _serveSpeedSlider);
                 _serveSpeedSlider.wholeNumbers = true;
                 _serveSpeedSlider.onValueChanged.AddListener(delegate { OnServeSpeedChanged(); });
+
+                yPos = CreateSliderRow(_contentObj.transform, "Bar Spaces:", 0f, 25f, Plugin.BarSpaceCount.Value, yPos, out _barSpaceText, out _barSpaceSlider);
+                _barSpaceSlider.wholeNumbers = true;
+                _barSpaceSlider.onValueChanged.AddListener(delegate { OnBarSpaceChanged(); });
 
                 // === CHEATS SECTION ===
                 yPos -= 5;
@@ -800,6 +815,70 @@ namespace TRStats
             ApplyServeSpeed();
         }
 
+        void OnBarSpaceChanged()
+        {
+            if (_barSpaceSlider == null || _barSpaceText == null) return;
+            int target = Mathf.RoundToInt(_barSpaceSlider.value);
+            Plugin.BarSpaceCount.Value = target;
+            _barSpaceText.text = target == 0 ? "Default" : target.ToString();
+            ApplyBarSpaces();
+        }
+
+        void ApplyBarSpaces()
+        {
+            try {
+                Bar bar = Bar.instance;
+                if (bar == null || bar.barSpaces == null || bar.barSpaces.Length == 0) return;
+
+                // Save the original on first access so we can always rebuild from it.
+                if (_originalBarSpaces == null || _originalBarSpaces.Length == 0) {
+                    _originalBarSpaces = new Transform[bar.barSpaces.Length];
+                    for (int i = 0; i < bar.barSpaces.Length; i++) _originalBarSpaces[i] = bar.barSpaces[i];
+                }
+
+                int target = Plugin.BarSpaceCount.Value;
+                int defaultLen = _originalBarSpaces.Length;
+
+                // Clean up any previously-created extra GOs.
+                foreach (GameObject go in _extraBarSpaceGOs) {
+                    try { if (go != null) Destroy(go); } catch {}
+                }
+                _extraBarSpaceGOs.Clear();
+
+                if (target <= 0 || target <= defaultLen) {
+                    // Restore to original.
+                    bar.barSpaces = _originalBarSpaces;
+                    bar.occupier = new HumanNPC[bar.barSpaces.Length];
+                    return;
+                }
+
+                // Extend: clone the last barSpace position with small offsets for each new slot.
+                Transform[] newSpaces = new Transform[target];
+                for (int i = 0; i < defaultLen; i++) newSpaces[i] = _originalBarSpaces[i];
+
+                Vector3 lastPos = _originalBarSpaces[_originalBarSpaces.Length - 1].position;
+                Vector3 offsetDir = (_originalBarSpaces.Length >= 2)
+                    ? (_originalBarSpaces[_originalBarSpaces.Length - 1].position - _originalBarSpaces[_originalBarSpaces.Length - 2].position)
+                    : new Vector3(0.5f, 0, 0);
+                if (offsetDir == Vector3.zero) offsetDir = new Vector3(0.5f, 0, 0);
+
+                for (int i = defaultLen; i < target; i++) {
+                    GameObject go = new GameObject("ExtraBarSpace_" + i);
+                    go.transform.SetParent(bar.transform, false);
+                    go.transform.position = lastPos + offsetDir * (i - defaultLen + 1);
+                    newSpaces[i] = go.transform;
+                    _extraBarSpaceGOs.Add(go);
+                }
+
+                bar.barSpaces = newSpaces;
+                bar.occupier = new HumanNPC[target];
+
+                File.AppendAllText(Plugin.LogPath, "Bar spaces set to " + target + " (default " + defaultLen + ")\n");
+            } catch (Exception ex) {
+                File.AppendAllText(Plugin.LogPath, "ApplyBarSpaces Error: " + ex.Message + "\n");
+            }
+        }
+
         void ApplyServeSpeed()
         {
             float seconds = (float)Plugin.ServeSpeedSeconds.Value;
@@ -1040,6 +1119,7 @@ namespace TRStats
 
                 File.AppendAllText(Plugin.LogPath, "Applied speed: " + Plugin.PlayerSpeedMultiplier.Value + "\n");
                 ApplyServeSpeed();
+                ApplyBarSpaces();
             } catch (Exception ex) {
                 File.AppendAllText(Plugin.LogPath, "Apply Error: " + ex.Message + "\n");
             }
@@ -1054,6 +1134,7 @@ namespace TRStats
             Plugin.InfiniteCoal.Value = false;
             Plugin.InfiniteWater.Value = false;
             Plugin.ServeSpeedSeconds.Value = 2;
+            Plugin.BarSpaceCount.Value = 0;
 
             if (_speedSlider != null) _speedSlider.value = 1.0f;
             if (_capacitySlider != null) _capacitySlider.value = 0;
@@ -1062,6 +1143,7 @@ namespace TRStats
             if (_infiniteCoalToggle != null) _infiniteCoalToggle.isOn = false;
             if (_infiniteWaterToggle != null) _infiniteWaterToggle.isOn = false;
             if (_serveSpeedSlider != null) _serveSpeedSlider.value = 2;
+            if (_barSpaceSlider != null) _barSpaceSlider.value = 0;
 
             PlayerController player = PlayerController.GetPlayer(1);
             if (player != null) player.speed = 1f;
