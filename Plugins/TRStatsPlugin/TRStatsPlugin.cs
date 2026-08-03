@@ -32,6 +32,7 @@ namespace TRStats
         public static ConfigEntry<bool> SkipMinePiecePoolPrewarm;
         public static ConfigEntry<int> ServeSpeedSeconds;
         public static ConfigEntry<int> BarSpaceCount;
+        public static ConfigEntry<float> CustomerSpeedMultiplier;
 
         void Awake()
         {
@@ -75,6 +76,10 @@ namespace TRStats
             BarSpaceCount = Config.Bind("Bar", "BarSpaceCount", 0,
                 new ConfigDescription("Total bar serving spaces (0 = game default). More spaces = more customers served simultaneously.",
                     new AcceptableValueRange<int>(0, 25)));
+
+            CustomerSpeedMultiplier = Config.Bind("Customers", "SpeedMultiplier", 1.0f,
+                new ConfigDescription("Customer eat/order speed multiplier (lower = faster turnover, 0.1x to 3x).",
+                    new AcceptableValueRange<float>(0.1f, 3.0f)));
 
             // Initialize patch-specific config
             Patches.InitializeConfig(Config);
@@ -141,6 +146,9 @@ namespace TRStats
         private Slider _serveSpeedSlider;
         private Text _barSpaceText;
         private Slider _barSpaceSlider;
+        private Text _custSpeedText;
+        private Slider _custSpeedSlider;
+        private float _nextCustomerSpeedTime;
         private Transform[] _originalBarSpaces;
         private List<GameObject> _extraBarSpaceGOs = new List<GameObject>();
         private Toggle _infiniteCoalToggle;
@@ -212,6 +220,7 @@ namespace TRStats
                 {
                     UpdateInfoText();
                 }
+                ApplyCustomerSpeed();
                 yield return wait;
             }
         }
@@ -478,6 +487,9 @@ namespace TRStats
                 yPos = CreateSliderRow(_contentObj.transform, "Bar Spaces:", 0f, 25f, Plugin.BarSpaceCount.Value, yPos, out _barSpaceText, out _barSpaceSlider);
                 _barSpaceSlider.wholeNumbers = true;
                 _barSpaceSlider.onValueChanged.AddListener(delegate { OnBarSpaceChanged(); });
+
+                yPos = CreateSliderRow(_contentObj.transform, "Customer Speed:", 0.1f, 3f, Plugin.CustomerSpeedMultiplier.Value, yPos, out _custSpeedText, out _custSpeedSlider);
+                _custSpeedSlider.onValueChanged.AddListener(delegate { OnCustomerSpeedChanged(); });
 
                 // === CHEATS SECTION ===
                 yPos -= 5;
@@ -824,6 +836,41 @@ namespace TRStats
             ApplyBarSpaces();
         }
 
+        void OnCustomerSpeedChanged()
+        {
+            if (_custSpeedSlider == null || _custSpeedText == null) return;
+            Plugin.CustomerSpeedMultiplier.Value = _custSpeedSlider.value;
+            _custSpeedText.text = _custSpeedSlider.value.ToString("F1") + "x";
+        }
+
+        // Periodically shortens remaining eating time on all customers so they finish faster
+        // (multiplier < 1 = eat faster = more throughput). Also scales order patience on
+        // CustomerInfo templates so new customers order more aggressively.
+        void ApplyCustomerSpeed()
+        {
+            float mult = Plugin.CustomerSpeedMultiplier.Value;
+            if (mult >= 0.99f && mult <= 1.01f) return; // 1.0x = no change
+            if (Time.time < _nextCustomerSpeedTime) return;
+            _nextCustomerSpeedTime = Time.time + 1f;
+
+            try {
+                Customer[] customers = FindObjectsOfType<Customer>();
+                foreach (Customer c in customers)
+                {
+                    if (c == null) continue;
+                    try {
+                        // currentFinishEatTime is an absolute Time.time value. Scale the remaining
+                        // duration so they finish sooner.
+                        if (c.currentFinishEatTime > Time.time)
+                        {
+                            float remaining = c.currentFinishEatTime - Time.time;
+                            c.currentFinishEatTime = Time.time + remaining * mult;
+                        }
+                    } catch {}
+                }
+            } catch {}
+        }
+
         void ApplyBarSpaces()
         {
             try {
@@ -1144,6 +1191,7 @@ namespace TRStats
             Plugin.InfiniteWater.Value = false;
             Plugin.ServeSpeedSeconds.Value = 2;
             Plugin.BarSpaceCount.Value = 0;
+            Plugin.CustomerSpeedMultiplier.Value = 1.0f;
 
             if (_speedSlider != null) _speedSlider.value = 1.0f;
             if (_capacitySlider != null) _capacitySlider.value = 0;
@@ -1153,6 +1201,7 @@ namespace TRStats
             if (_infiniteWaterToggle != null) _infiniteWaterToggle.isOn = false;
             if (_serveSpeedSlider != null) _serveSpeedSlider.value = 2;
             if (_barSpaceSlider != null) _barSpaceSlider.value = 0;
+            if (_custSpeedSlider != null) _custSpeedSlider.value = 1.0f;
 
             PlayerController player = PlayerController.GetPlayer(1);
             if (player != null) player.speed = 1f;
