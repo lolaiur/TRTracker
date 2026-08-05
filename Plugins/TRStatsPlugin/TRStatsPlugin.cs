@@ -31,7 +31,6 @@ namespace TRStats
         public static ConfigEntry<bool> InfiniteWater;
         public static ConfigEntry<bool> SkipMinePiecePoolPrewarm;
         public static ConfigEntry<int> ServeSpeedSeconds;
-        public static ConfigEntry<int> BarSpaceCount;
         public static ConfigEntry<float> CustomerSpeedMultiplier;
 
         void Awake()
@@ -72,10 +71,6 @@ namespace TRStats
             ServeSpeedSeconds = Config.Bind("Bar", "ServeSpeedSeconds", 2,
                 new ConfigDescription("Barworker seconds per serve (1=fast, 25=slow). Applied to all barworkers.",
                     new AcceptableValueRange<int>(1, 25)));
-
-            BarSpaceCount = Config.Bind("Bar", "BarSpaceCount", 0,
-                new ConfigDescription("Total bar serving spaces (0 = game default). More spaces = more customers served simultaneously.",
-                    new AcceptableValueRange<int>(0, 25)));
 
             CustomerSpeedMultiplier = Config.Bind("Customers", "SpeedMultiplier", 1.0f,
                 new ConfigDescription("Customer eat/order speed multiplier (lower = faster turnover, 0.1x to 3x).",
@@ -144,13 +139,9 @@ namespace TRStats
         private Slider _workAvoidSlider;
         private Text _serveSpeedText;
         private Slider _serveSpeedSlider;
-        private Text _barSpaceText;
-        private Slider _barSpaceSlider;
         private Text _custSpeedText;
         private Slider _custSpeedSlider;
         private float _nextCustomerSpeedTime;
-        private Transform[] _originalBarSpaces;
-        private List<GameObject> _extraBarSpaceGOs = new List<GameObject>();
         private Toggle _infiniteCoalToggle;
         private Toggle _infiniteWaterToggle;
         private Text _infoText;
@@ -188,8 +179,6 @@ namespace TRStats
                 if (_uiObj == null) CreateUI();
                 EnsureGameLoop();
                 ApplyServeSpeed();
-                _originalBarSpaces = null; // reset so it re-captures after scene load
-                ApplyBarSpaces();
             } catch { }
         }
 
@@ -483,10 +472,6 @@ namespace TRStats
                 yPos = CreateSliderRow(_contentObj.transform, "Serve Speed (s):", 1f, 25f, Plugin.ServeSpeedSeconds.Value, yPos, out _serveSpeedText, out _serveSpeedSlider);
                 _serveSpeedSlider.wholeNumbers = true;
                 _serveSpeedSlider.onValueChanged.AddListener(delegate { OnServeSpeedChanged(); });
-
-                yPos = CreateSliderRow(_contentObj.transform, "Bar Spaces:", 0f, 25f, Plugin.BarSpaceCount.Value, yPos, out _barSpaceText, out _barSpaceSlider);
-                _barSpaceSlider.wholeNumbers = true;
-                _barSpaceSlider.onValueChanged.AddListener(delegate { OnBarSpaceChanged(); });
 
                 yPos = CreateSliderRow(_contentObj.transform, "Customer Speed:", 0.1f, 3f, Plugin.CustomerSpeedMultiplier.Value, yPos, out _custSpeedText, out _custSpeedSlider);
                 _custSpeedSlider.onValueChanged.AddListener(delegate { OnCustomerSpeedChanged(); });
@@ -827,15 +812,6 @@ namespace TRStats
             ApplyServeSpeed();
         }
 
-        void OnBarSpaceChanged()
-        {
-            if (_barSpaceSlider == null || _barSpaceText == null) return;
-            int target = Mathf.RoundToInt(_barSpaceSlider.value);
-            Plugin.BarSpaceCount.Value = target;
-            _barSpaceText.text = target == 0 ? "Default" : target.ToString();
-            ApplyBarSpaces();
-        }
-
         void OnCustomerSpeedChanged()
         {
             if (_custSpeedSlider == null || _custSpeedText == null) return;
@@ -869,70 +845,6 @@ namespace TRStats
                     } catch {}
                 }
             } catch {}
-        }
-
-        void ApplyBarSpaces()
-        {
-            try {
-                Bar bar = Bar.instance;
-                if (bar == null || bar.barSpaces == null || bar.barSpaces.Length == 0) return;
-
-                // Save the original on first access so we can always rebuild from it.
-                if (_originalBarSpaces == null || _originalBarSpaces.Length == 0) {
-                    _originalBarSpaces = new Transform[bar.barSpaces.Length];
-                    for (int i = 0; i < bar.barSpaces.Length; i++) _originalBarSpaces[i] = bar.barSpaces[i];
-                }
-
-                int target = Plugin.BarSpaceCount.Value;
-                int defaultLen = _originalBarSpaces.Length;
-
-                // Clean up any previously-created extra GOs.
-                foreach (GameObject go in _extraBarSpaceGOs) {
-                    try { if (go != null) Destroy(go); } catch {}
-                }
-                _extraBarSpaceGOs.Clear();
-
-                if (target <= 0 || target <= defaultLen) {
-                    // Restore: preserve any occupier entries that fit in the original length.
-                    HumanNPC[] savedOccupier = bar.occupier;
-                    bar.barSpaces = _originalBarSpaces;
-                    bar.occupier = new HumanNPC[defaultLen];
-                    if (savedOccupier != null) {
-                        int copyLen = System.Math.Min(savedOccupier.Length, defaultLen);
-                        for (int i = 0; i < copyLen; i++) bar.occupier[i] = savedOccupier[i];
-                    }
-                    return;
-                }
-
-                // Extend: reuse the last existing position for all new slots (stacking is fine,
-                // offsets caused pathfinding failures). Preserve existing occupier entries.
-                Transform[] newSpaces = new Transform[target];
-                for (int i = 0; i < defaultLen; i++) newSpaces[i] = _originalBarSpaces[i];
-
-                Transform lastSpace = _originalBarSpaces[defaultLen - 1];
-                for (int i = defaultLen; i < target; i++) {
-                    GameObject go = new GameObject("ExtraBarSpace_" + i);
-                    go.transform.SetParent(bar.transform, false);
-                    go.transform.position = lastSpace.position; // same spot — stacking, not offset
-                    newSpaces[i] = go.transform;
-                    _extraBarSpaceGOs.Add(go);
-                }
-
-                // Preserve existing occupier entries — wiping them breaks customer state.
-                HumanNPC[] oldOccupier = bar.occupier;
-                HumanNPC[] newOccupier = new HumanNPC[target];
-                if (oldOccupier != null) {
-                    int copyLen = System.Math.Min(oldOccupier.Length, target);
-                    for (int i = 0; i < copyLen; i++) newOccupier[i] = oldOccupier[i];
-                }
-
-                bar.barSpaces = newSpaces;
-                bar.occupier = newOccupier;
-
-                File.AppendAllText(Plugin.LogPath, "Bar spaces set to " + target + " (default " + defaultLen + ")\n");
-            } catch (Exception ex) {
-                File.AppendAllText(Plugin.LogPath, "ApplyBarSpaces Error: " + ex.Message + "\n");
-            }
         }
 
         void ApplyServeSpeed()
@@ -1175,7 +1087,6 @@ namespace TRStats
 
                 File.AppendAllText(Plugin.LogPath, "Applied speed: " + Plugin.PlayerSpeedMultiplier.Value + "\n");
                 ApplyServeSpeed();
-                ApplyBarSpaces();
             } catch (Exception ex) {
                 File.AppendAllText(Plugin.LogPath, "Apply Error: " + ex.Message + "\n");
             }
@@ -1190,7 +1101,6 @@ namespace TRStats
             Plugin.InfiniteCoal.Value = false;
             Plugin.InfiniteWater.Value = false;
             Plugin.ServeSpeedSeconds.Value = 2;
-            Plugin.BarSpaceCount.Value = 0;
             Plugin.CustomerSpeedMultiplier.Value = 1.0f;
 
             if (_speedSlider != null) _speedSlider.value = 1.0f;
@@ -1200,7 +1110,6 @@ namespace TRStats
             if (_infiniteCoalToggle != null) _infiniteCoalToggle.isOn = false;
             if (_infiniteWaterToggle != null) _infiniteWaterToggle.isOn = false;
             if (_serveSpeedSlider != null) _serveSpeedSlider.value = 2;
-            if (_barSpaceSlider != null) _barSpaceSlider.value = 0;
             if (_custSpeedSlider != null) _custSpeedSlider.value = 1.0f;
 
             PlayerController player = PlayerController.GetPlayer(1);
