@@ -29,7 +29,7 @@ Tracks aging barrels and shows aging progress and ready drinks across all of the
 Extra bar panel showing the drinks on tap, current stock, and flow rates.
 
 ### 🍔 TRStats (F4)
-Cheats and gameplay tweaks: player speed, customer capacity, price modifiers, employee work avoidance, infinite coal and water, crop watering and instant-grow tools, and one-click animal water filling.
+Cheats and gameplay tweaks: player speed, customer capacity, price modifiers, employee work avoidance, infinite coal and water, crop watering and instant-grow tools, one-click animal water filling, barworker serve speed, and customer eating speed.
 
 ### 🔄 TRAutoloader (F5)
 Keeps the bar menu stocked and tops off beer taps, kegs, and bar barrels from a loader container you assign. Each dispenser keeps the drink it already holds (it never mixes drinks, so put the drink you want in a dispenser once and it stays topped off). It has an on/off toggle, a configurable refill interval, and a rolling action feed in the panel.

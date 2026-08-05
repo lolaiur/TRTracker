@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.1.0
+
+### TRStats
+- Added **Serve Speed** slider (1-25 seconds) to the BAR section of F4. Controls how long barworkers take per serve.
+- Added **Customer Speed** slider (0.1x-3x) to the BAR section. Scales customer eating duration so tables free up faster (lower = faster turnover).
+
 ## 2.0.0 (unreleased) — post-push fixes
 
 ### Bug fixes

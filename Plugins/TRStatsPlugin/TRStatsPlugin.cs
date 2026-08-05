@@ -30,6 +30,8 @@ namespace TRStats
         public static ConfigEntry<bool> InfiniteCoal;
         public static ConfigEntry<bool> InfiniteWater;
         public static ConfigEntry<bool> SkipMinePiecePoolPrewarm;
+        public static ConfigEntry<int> ServeSpeedSeconds;
+        public static ConfigEntry<float> CustomerSpeedMultiplier;
 
         void Awake()
         {
@@ -40,8 +42,8 @@ namespace TRStats
             Directory.CreateDirectory(logDir);
             LogPath = Path.Combine(logDir, "trstats_debug.txt");
             try { File.Delete(LogPath); } catch { }
-            File.WriteAllText(LogPath, "TRStats 2.0.0\n");
-            Logger.LogInfo("TRStats 2.0.0");
+            File.WriteAllText(LogPath, "TRStats 2.1.0\n");
+            Logger.LogInfo("TRStats 2.1.0");
 
             // Initialize config
             PlayerSpeedMultiplier = Config.Bind("Player", "SpeedMultiplier", 1.0f,
@@ -65,6 +67,14 @@ namespace TRStats
 
             SkipMinePiecePoolPrewarm = Config.Bind("Compatibility", "SkipMinePiecePoolPrewarm", true,
                 "Skips the updated game's mine-piece pool prewarm that can hard-crash while loading saves");
+
+            ServeSpeedSeconds = Config.Bind("Bar", "ServeSpeedSeconds", 2,
+                new ConfigDescription("Barworker seconds per serve (1=fast, 25=slow). Applied to all barworkers.",
+                    new AcceptableValueRange<int>(1, 25)));
+
+            CustomerSpeedMultiplier = Config.Bind("Customers", "SpeedMultiplier", 1.0f,
+                new ConfigDescription("Customer eat/order speed multiplier (lower = faster turnover, 0.1x to 3x).",
+                    new AcceptableValueRange<float>(0.1f, 3.0f)));
 
             // Initialize patch-specific config
             Patches.InitializeConfig(Config);
@@ -127,6 +137,11 @@ namespace TRStats
         private Slider _priceSlider;
         private Text _workAvoidText;
         private Slider _workAvoidSlider;
+        private Text _serveSpeedText;
+        private Slider _serveSpeedSlider;
+        private Text _custSpeedText;
+        private Slider _custSpeedSlider;
+        private float _nextCustomerSpeedTime;
         private Toggle _infiniteCoalToggle;
         private Toggle _infiniteWaterToggle;
         private Text _infoText;
@@ -163,6 +178,7 @@ namespace TRStats
             try {
                 if (_uiObj == null) CreateUI();
                 EnsureGameLoop();
+                ApplyServeSpeed();
             } catch { }
         }
 
@@ -193,6 +209,7 @@ namespace TRStats
                 {
                     UpdateInfoText();
                 }
+                ApplyCustomerSpeed();
                 yield return wait;
             }
         }
@@ -296,7 +313,7 @@ namespace TRStats
                 hTitle.transform.SetParent(header.transform, false);
                 Text ht = hTitle.AddComponent<Text>();
                 ht.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-                ht.text = "TR CHEATS 2.0.0 (F4)";
+                ht.text = "TR CHEATS 2.1.0 (F4)";
                 ht.alignment = TextAnchor.MiddleCenter;
                 ht.color = new Color(1f, 0.8f, 0.4f);
                 ht.fontSize = 14;
@@ -448,6 +465,16 @@ namespace TRStats
                 yPos = CreateSectionHeader(_contentObj.transform, "EMPLOYEES", yPos);
                 yPos = CreateSliderRow(_contentObj.transform, "Work Avoidance:", 0.1f, 3f, Patches.EmployeeWorkAvoidanceMultiplier.Value, yPos, out _workAvoidText, out _workAvoidSlider);
                 _workAvoidSlider.onValueChanged.AddListener(delegate { OnWorkAvoidChanged(); });
+
+                // === BAR SECTION ===
+                yPos -= 5;
+                yPos = CreateSectionHeader(_contentObj.transform, "BAR", yPos);
+                yPos = CreateSliderRow(_contentObj.transform, "Serve Speed (s):", 1f, 25f, Plugin.ServeSpeedSeconds.Value, yPos, out _serveSpeedText, out _serveSpeedSlider);
+                _serveSpeedSlider.wholeNumbers = true;
+                _serveSpeedSlider.onValueChanged.AddListener(delegate { OnServeSpeedChanged(); });
+
+                yPos = CreateSliderRow(_contentObj.transform, "Customer Speed:", 0.1f, 3f, Plugin.CustomerSpeedMultiplier.Value, yPos, out _custSpeedText, out _custSpeedSlider);
+                _custSpeedSlider.onValueChanged.AddListener(delegate { OnCustomerSpeedChanged(); });
 
                 // === CHEATS SECTION ===
                 yPos -= 5;
@@ -776,6 +803,67 @@ namespace TRStats
             _workAvoidText.text = _workAvoidSlider.value.ToString("F1") + "x";
         }
 
+        void OnServeSpeedChanged()
+        {
+            if (_serveSpeedSlider == null || _serveSpeedText == null) return;
+            int seconds = Mathf.RoundToInt(_serveSpeedSlider.value);
+            Plugin.ServeSpeedSeconds.Value = seconds;
+            _serveSpeedText.text = seconds + "s";
+            ApplyServeSpeed();
+        }
+
+        void OnCustomerSpeedChanged()
+        {
+            if (_custSpeedSlider == null || _custSpeedText == null) return;
+            Plugin.CustomerSpeedMultiplier.Value = _custSpeedSlider.value;
+            _custSpeedText.text = _custSpeedSlider.value.ToString("F1") + "x";
+        }
+
+        // Periodically shortens remaining eating time on all customers so they finish faster
+        // (multiplier < 1 = eat faster = more throughput). Also scales order patience on
+        // CustomerInfo templates so new customers order more aggressively.
+        void ApplyCustomerSpeed()
+        {
+            float mult = Plugin.CustomerSpeedMultiplier.Value;
+            if (mult >= 0.99f && mult <= 1.01f) return; // 1.0x = no change
+            if (Time.time < _nextCustomerSpeedTime) return;
+            _nextCustomerSpeedTime = Time.time + 1f;
+
+            try {
+                Customer[] customers = FindObjectsOfType<Customer>();
+                foreach (Customer c in customers)
+                {
+                    if (c == null) continue;
+                    try {
+                        // currentFinishEatTime is an absolute Time.time value. Scale the remaining
+                        // duration so they finish sooner.
+                        if (c.currentFinishEatTime > Time.time)
+                        {
+                            float remaining = c.currentFinishEatTime - Time.time;
+                            c.currentFinishEatTime = Time.time + remaining * mult;
+                        }
+                    } catch {}
+                }
+            } catch {}
+        }
+
+        void ApplyServeSpeed()
+        {
+            float seconds = (float)Plugin.ServeSpeedSeconds.Value;
+            Barworker[] barworkers = FindObjectsOfType<Barworker>();
+            int count = 0;
+            foreach (Barworker bw in barworkers)
+            {
+                if (bw == null) continue;
+                try {
+                    bw.timeTakingDrink = seconds;
+                    bw.timeAfterServe = seconds * 0.25f;
+                    count++;
+                } catch {}
+            }
+            try { File.AppendAllText(Plugin.LogPath, "Serve speed set to " + seconds + "s on " + count + " barworkers\n"); } catch {}
+        }
+
         void WaterAllCrops()
         {
             try {
@@ -998,6 +1086,7 @@ namespace TRStats
                 }
 
                 File.AppendAllText(Plugin.LogPath, "Applied speed: " + Plugin.PlayerSpeedMultiplier.Value + "\n");
+                ApplyServeSpeed();
             } catch (Exception ex) {
                 File.AppendAllText(Plugin.LogPath, "Apply Error: " + ex.Message + "\n");
             }
@@ -1011,6 +1100,8 @@ namespace TRStats
             Patches.EmployeeWorkAvoidanceMultiplier.Value = 1.0f;
             Plugin.InfiniteCoal.Value = false;
             Plugin.InfiniteWater.Value = false;
+            Plugin.ServeSpeedSeconds.Value = 2;
+            Plugin.CustomerSpeedMultiplier.Value = 1.0f;
 
             if (_speedSlider != null) _speedSlider.value = 1.0f;
             if (_capacitySlider != null) _capacitySlider.value = 0;
@@ -1018,6 +1109,8 @@ namespace TRStats
             if (_workAvoidSlider != null) _workAvoidSlider.value = 1.0f;
             if (_infiniteCoalToggle != null) _infiniteCoalToggle.isOn = false;
             if (_infiniteWaterToggle != null) _infiniteWaterToggle.isOn = false;
+            if (_serveSpeedSlider != null) _serveSpeedSlider.value = 2;
+            if (_custSpeedSlider != null) _custSpeedSlider.value = 1.0f;
 
             PlayerController player = PlayerController.GetPlayer(1);
             if (player != null) player.speed = 1f;
@@ -1140,6 +1233,6 @@ namespace TRStats
     {
         public const string PLUGIN_GUID = "com.trstats.mod";
         public const string PLUGIN_NAME = "TR Stats";
-        public const string PLUGIN_VERSION = "2.0.0";
+        public const string PLUGIN_VERSION = "2.1.0";
     }
 }
