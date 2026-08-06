@@ -429,7 +429,7 @@ namespace TRStats
                 foreach (MinePiece piece in pool.poolPieces)
                 {
                     if (piece == null) continue;
-                    int key = piece.JBCFIHPKMLF;
+                    int key = piece.KDMCJKDMCIN;
                     if (!dictionary.ContainsKey(key)) dictionary[key] = new Queue<MinePiece>();
                 }
             }
