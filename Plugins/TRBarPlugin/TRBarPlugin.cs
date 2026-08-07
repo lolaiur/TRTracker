@@ -145,7 +145,7 @@ namespace TRBarPlugin
         private List<FoodData> _food = new List<FoodData>();
         
         // Settings
-        private float _updateInterval = 1.0f;
+        private float _updateInterval = 2.0f;
         private float _rescanInterval = 5.0f;
         private float _nextDispenserScanTime = 0f;
         private Coroutine _loopCoroutine;

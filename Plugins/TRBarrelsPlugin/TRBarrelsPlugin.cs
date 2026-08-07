@@ -397,7 +397,7 @@ namespace TRBarrels
         public RectTransform ContentRect;
         
         private float _scanInterval = 5f;
-        private float _listUpdateInterval = 1f;
+        private float _listUpdateInterval = 2f;
         private float _nextScanTime = 0f;
         private float _nextUpdateTime = 0f;
         private float _nextStageDiagTime = 0f;

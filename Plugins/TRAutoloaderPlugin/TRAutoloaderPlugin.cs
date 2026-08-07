@@ -125,7 +125,7 @@ namespace TRAutoloaderPlugin
         private Text _infoText;
         private Toggle _enabledToggle;
         private Coroutine _loopCoroutine;
-        private float _infoUpdateInterval = 0.5f;
+        private float _infoUpdateInterval = 2f;
 
         void Start()
         {

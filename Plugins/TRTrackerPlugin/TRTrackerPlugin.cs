@@ -158,7 +158,7 @@ namespace TRTracker
         }
 
         private IEnumerator RefreshTrackerLoop() {
-            var delay = new WaitForSecondsRealtime(0.25f);
+            var delay = new WaitForSecondsRealtime(2f);
             while (true) {
                 try { TRTrackerPatch.Refresh(); } catch {}
                 yield return delay;
