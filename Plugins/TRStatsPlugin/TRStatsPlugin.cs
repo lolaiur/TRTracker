@@ -547,11 +547,25 @@ namespace TRStats
                 ResizeHandler rh = grip.AddComponent<ResizeHandler>();
                 rh.PanelRect = _panelRT;
 
+                OptimizeRaycast(_uiObj);
                 File.AppendAllText(Plugin.LogPath, "UI Created Successfully!\n");
-
             } catch (Exception ex) {
                 File.AppendAllText(Plugin.LogPath, "CreateUI Error: " + ex.ToString() + "\n");
             }
+        }
+
+        private static void OptimizeRaycast(GameObject root) {
+            if (root == null) return;
+            try {
+                Graphic[] graphics = root.GetComponentsInChildren<Graphic>();
+                foreach (Graphic g in graphics) {
+                    if (g == null) continue;
+                    bool interactive = g.GetComponent<Selectable>() != null
+                        || g.GetComponent<IPointerDownHandler>() != null
+                        || g.GetComponent<IDragHandler>() != null;
+                    if (!interactive) g.raycastTarget = false;
+                }
+            } catch {}
         }
 
         float CreateSectionHeader(Transform parent, string text, float yPos)

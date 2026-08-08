@@ -434,6 +434,7 @@ namespace TRTracker
                 // --- DRAG LOGIC ---
                 WindowDestroyer drag = header.AddComponent<WindowDestroyer>();
                 drag.TargetMover = panelRT;
+                OptimizeRaycast(UI_OBJ);
 
                 UI.Init(panelRT);
                 t.text = "Waiting for game data..."; 
@@ -441,6 +442,20 @@ namespace TRTracker
             catch (Exception ex) {
                 File.AppendAllText(TRTrackerPlugin.LogPath, "CreateUI CRASH: " + ex.ToString() + "\n");
             }
+        }
+
+        private static void OptimizeRaycast(GameObject root) {
+            if (root == null) return;
+            try {
+                Graphic[] graphics = root.GetComponentsInChildren<Graphic>();
+                foreach (Graphic g in graphics) {
+                    if (g == null) continue;
+                    bool interactive = g.GetComponent<Selectable>() != null
+                        || g.GetComponent<IPointerDownHandler>() != null
+                        || g.GetComponent<IDragHandler>() != null;
+                    if (!interactive) g.raycastTarget = false;
+                }
+            } catch {}
         }
     }
     

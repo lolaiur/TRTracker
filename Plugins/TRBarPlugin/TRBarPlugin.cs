@@ -467,6 +467,7 @@ namespace TRBarPlugin
                 btn.onClick.AddListener(ch.OnToggle);
 
                 _mainText.text = "Waiting for data...";
+                OptimizeRaycast(_uiObj);
 
             } catch (Exception ex) {
                 try {
@@ -474,6 +475,20 @@ namespace TRBarPlugin
                     if (_uiObj != null) { Destroy(_uiObj); _uiObj = null; }
                 } catch {}
             }
+        }
+
+        private static void OptimizeRaycast(GameObject root) {
+            if (root == null) return;
+            try {
+                Graphic[] graphics = root.GetComponentsInChildren<Graphic>();
+                foreach (Graphic g in graphics) {
+                    if (g == null) continue;
+                    bool interactive = g.GetComponent<Selectable>() != null
+                        || g.GetComponent<IPointerDownHandler>() != null
+                        || g.GetComponent<IDragHandler>() != null;
+                    if (!interactive) g.raycastTarget = false;
+                }
+            } catch {}
         }
 
         private void ScanBar()

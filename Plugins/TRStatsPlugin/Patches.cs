@@ -394,6 +394,7 @@ namespace TRStats
         public static class MinePiecePoolPatches
         {
             private static readonly FieldInfo PoolDictionaryField = FindPoolDictionaryField();
+            private static readonly FieldInfo MinePieceIdField = FindMinePieceIdField();
 
             [HarmonyPrefix]
             public static bool Awake_Prefix(MinePiecePool __instance)
@@ -429,7 +430,7 @@ namespace TRStats
                 foreach (MinePiece piece in pool.poolPieces)
                 {
                     if (piece == null) continue;
-                    int key = piece.KDMCJKDMCIN;
+                    int key = GetMinePieceId(piece);
                     if (!dictionary.ContainsKey(key)) dictionary[key] = new Queue<MinePiece>();
                 }
             }
@@ -442,6 +443,23 @@ namespace TRStats
                 }
 
                 return null;
+            }
+
+            private static FieldInfo FindMinePieceIdField()
+            {
+                // _minePieceID is [SerializeField], so its name stays stable through obfuscation passes.
+                return typeof(MinePiece).GetField("_minePieceID", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            }
+
+            private static int GetMinePieceId(MinePiece piece)
+            {
+                if (piece == null) return -1;
+                if (MinePieceIdField != null)
+                {
+                    object val = MinePieceIdField.GetValue(piece);
+                    if (val is int) return (int)val;
+                }
+                return 0;
             }
         }
     }

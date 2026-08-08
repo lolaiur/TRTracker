@@ -275,10 +275,25 @@ namespace TRBarrels
                 mgr.TextName = CreateColumn(content.transform, "ColName", 10, 165, TextAnchor.UpperLeft);
                 mgr.TextStage = CreateColumn(content.transform, "ColStage", 170, 235, TextAnchor.UpperCenter);
                 mgr.TextTime = CreateColumn(content.transform, "ColTime", 240, 330, TextAnchor.UpperRight);
+                OptimizeRaycast(UI_OBJ);
             }
             catch {}
         }
-        
+
+        private static void OptimizeRaycast(GameObject root) {
+            if (root == null) return;
+            try {
+                Graphic[] graphics = root.GetComponentsInChildren<Graphic>();
+                foreach (Graphic g in graphics) {
+                    if (g == null) continue;
+                    bool interactive = g.GetComponent<Selectable>() != null
+                        || g.GetComponent<IPointerDownHandler>() != null
+                        || g.GetComponent<IDragHandler>() != null;
+                    if (!interactive) g.raycastTarget = false;
+                }
+            } catch {}
+        }
+
         void CreateHeaderText(Transform parent, string txt, float xMin, float xMax, TextAnchor align)
         {
             GameObject go = new GameObject("H_"+txt);
