@@ -183,11 +183,7 @@ namespace TRTracker
             if (Input.GetKeyDown(KeyCode.F9)) {
                 if (TimeCtrl != null) TimeCtrl.ToggleFreeze();
             }
-            
-             if (UI_OBJ != null && UI_OBJ.activeSelf) {
-                Cursor.visible = true;
-                Cursor.lockState = CursorLockMode.None;
-            }
+
             if (UI_OBJ == null) CreateUI();
         }
         
