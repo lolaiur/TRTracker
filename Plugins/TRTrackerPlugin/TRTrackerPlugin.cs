@@ -450,9 +450,21 @@ namespace TRTracker
                 Graphic[] graphics = root.GetComponentsInChildren<Graphic>();
                 foreach (Graphic g in graphics) {
                     if (g == null) continue;
-                    bool interactive = g.GetComponent<Selectable>() != null
-                        || g.GetComponent<IPointerDownHandler>() != null
-                        || g.GetComponent<IDragHandler>() != null;
+                    // Sliders/toggles put their Selectable on a parent GO while the graphic that
+                    // must absorb the click sits on a child GO, so walk up the hierarchy.
+                    bool interactive = false;
+                    Transform t = g.transform;
+                    while (t != null) {
+                        GameObject go = t.gameObject;
+                        if (go.GetComponent<Selectable>() != null
+                            || go.GetComponent<IPointerClickHandler>() != null
+                            || go.GetComponent<IPointerDownHandler>() != null
+                            || go.GetComponent<IDragHandler>() != null) {
+                            interactive = true;
+                            break;
+                        }
+                        t = t.parent;
+                    }
                     if (!interactive) g.raycastTarget = false;
                 }
             } catch {}
