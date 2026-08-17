@@ -11,7 +11,7 @@ using TRShared;
 
 namespace TRBarrels
 {
-    [BepInPlugin("com.lolaiur.trbarrels", "Tavern Barrels", "2.0.0")]
+    [BepInPlugin("com.lolaiur.trbarrels", "Tavern Barrels", "2.2.0")]
     public class TRBarrelsPlugin : BaseUnityPlugin
     {
         public static TRBarrelsPlugin Instance;
@@ -106,7 +106,7 @@ namespace TRBarrels
                 hTitle.transform.SetParent(header.transform, false);
                 Text ht = hTitle.AddComponent<Text>();
                 ht.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-                ht.text = "TR AGING TRACKER 2.0.0 (F2)";
+                ht.text = "TR AGING TRACKER 2.2.0 (F2)";
                 ht.alignment = TextAnchor.MiddleCenter;
                 ht.color = new Color(1f, 0.8f, 0.4f);
                 ht.fontSize = 14;
@@ -443,6 +443,7 @@ namespace TRBarrels
         private readonly Dictionary<Type, FieldInfo> _totalMinuteFields = new Dictionary<Type, FieldInfo>();
         private readonly Dictionary<Type, FieldInfo> _startMinuteFields = new Dictionary<Type, FieldInfo>();
         private readonly Dictionary<Type, FieldInfo> _agingLevelFields = new Dictionary<Type, FieldInfo>();
+        private readonly Dictionary<Type, PropertyInfo> _agingLevelProps = new Dictionary<Type, PropertyInfo>();
         private readonly Dictionary<Type, PropertyInfo[]> _stageProperties = new Dictionary<Type, PropertyInfo[]>();
 
         void Update()
@@ -560,9 +561,26 @@ namespace TRBarrels
                             displayName = displayName.Replace("(Food)", "").Replace("(Clone)", "").Trim();
                             e.Name = string.Format("{0} <size=11>(x{1})</size>", displayName, qty);
 
-                            // Compute aging progress from the barrel's timer. The start>0 check
-                            // prevents unaged items (dateStartedMin=0) from computing huge progress.
-                            double progress = 0;
+                            // Authoritative aging stage: the food's own aging-level member, the same
+                            // value the game uses to append the suffix to its display name. Values are
+                            // 0=Unaged, 2=Young, 3=Reserve, 4=Grand Reserve (1 is unlabeled by the game).
+                            // Reading this directly fixes finished barrels, whose dateStartedMin is 0
+                            // so the old timer-progress math reported them as Unaged. The game has
+                            // alternated between exposing this as a property and a plain field, so try both.
+                            int agingLevel = -1;
+                            try {
+                                PropertyInfo ageP = GetCachedProperty(_agingLevelProps, itemInst.GetType(), "GKAFDFGINHI");
+                                if (ageP != null) agingLevel = (int)ageP.GetValue(itemInst, null);
+                                if (agingLevel < 0) {
+                                    FieldInfo ageF = GetCachedField(_agingLevelFields, itemInst.GetType(), "GKAFDFGINHI");
+                                    if (ageF != null) agingLevel = (int)ageF.GetValue(itemInst);
+                                }
+                            } catch {}
+
+                            // Fine-grained percentage is secondary: only meaningful while a barrel is
+                            // actively aging (dateStartedMin > 0). Once finished the timer reads 0.
+                            double timerProgress = 0;
+                            bool haveTimer = false;
                             try {
                                 FieldInfo timerF = GetCachedField(_timerFields, bType, "timer");
                                 if (timerF != null) {
@@ -578,10 +596,10 @@ namespace TRBarrels
                                                 ulong start = (ulong)startF.GetValue(t);
                                                 ulong current = BarrelReflection.GetStaticValueByType<ulong>(Type.GetType("WorldTime, Assembly-CSharp"));
                                                 if (total > 0 && start > 0 && current >= start) {
-                                                    double elapsed = (double)(current - start);
-                                                    progress = (elapsed / (double)total) * 100.0;
-                                                    if (progress < 0) progress = 0;
-                                                    if (progress > 100) progress = 100;
+                                                    timerProgress = ((double)(current - start) / (double)total) * 100.0;
+                                                    if (timerProgress < 0) timerProgress = 0;
+                                                    if (timerProgress > 100) timerProgress = 100;
+                                                    haveTimer = true;
                                                 }
                                             }
                                         }
@@ -589,26 +607,25 @@ namespace TRBarrels
                                 }
                             } catch {}
 
-                            // Stage: derive from timer progress, not from item properties. The item's
-                            // int properties are STATIC (quality tier, max aging level) and don't
-                            // change as it ages, so scanning them gave wrong results for quality items.
-                            // Thresholds: 0-33% Young, 33-66% Normal, 66-100% Reserve, done = Grand R.
-                            int stage = 0;
-                            if (progress >= 100) stage = 4;
-                            else if (progress > 66) stage = 3;
-                            else if (progress > 33) stage = 2;
-                            else if (progress > 0) stage = 1;
-                            e.StageVal = stage;
-
-                            string stageStr = "Unaged";
-                            if(stage==1) stageStr = "<color=blue>Young</color>";
-                            if(stage==2) stageStr = "<color=green>Normal</color>";
-                            if(stage==3) stageStr = "<color=purple>Reserve</color>";
-                            if(stage>=4) stageStr = "<color=#FF4500>Grand R.</color>";
+                            e.StageVal = agingLevel;
+                            string stageStr;
+                            if (agingLevel == 4) stageStr = "<color=#FF4500>Grand R.</color>";
+                            else if (agingLevel == 3) stageStr = "<color=purple>Reserve</color>";
+                            else if (agingLevel == 2) stageStr = "<color=green>Young</color>";
+                            else if (agingLevel == 1) stageStr = "<color=#88ccff>Aging</color>";
+                            else stageStr = "Unaged";
                             e.Stage = stageStr;
 
-                            // Progress display
-                            if (stage >= 4) {
+                            // Progress display: finished = 100%, aging = live timer %, otherwise a
+                            // coarse bucket from the stage so the column is never blank.
+                            double progress;
+                            if (agingLevel >= 4) progress = 100;
+                            else if (haveTimer) progress = timerProgress;
+                            else if (agingLevel == 3) progress = 75;
+                            else if (agingLevel == 2) progress = 40;
+                            else progress = 0;
+
+                            if (agingLevel >= 4) {
                                 e.Time = "<color=green>100.0%</color>";
                                 e.ProgressVal = 101;
                             } else if (progress > 0) {
