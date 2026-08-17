@@ -14,7 +14,7 @@ using TRShared;
 
 namespace TRTracker
 {
-    [BepInPlugin("com.lolaiur.trtracker", "Tavern Tracker", "2.0.0")]
+    [BepInPlugin("com.lolaiur.trtracker", "Tavern Tracker", "2.2.0")]
     public class TRTrackerPlugin : BaseUnityPlugin
     {
         public static TRTrackerPlugin Instance;
@@ -27,7 +27,7 @@ namespace TRTracker
              Directory.CreateDirectory(logDir);
              LogPath = Path.Combine(logDir, "tracker_debug.txt");
              try { if (File.Exists(LogPath)) File.Delete(LogPath); } catch { }
-             try { File.WriteAllText(LogPath, "TRTracker 2.0.0\n"); } catch { }
+             try { File.WriteAllText(LogPath, "TRTracker 2.2.0\n"); } catch { }
              
              // Cleanup old
              var old = FindObjectOfType<TrackerManager>();
@@ -158,7 +158,7 @@ namespace TRTracker
         }
 
         private IEnumerator RefreshTrackerLoop() {
-            var delay = new WaitForSecondsRealtime(0.25f);
+            var delay = new WaitForSecondsRealtime(2f);
             while (true) {
                 try { TRTrackerPatch.Refresh(); } catch {}
                 yield return delay;
@@ -183,11 +183,7 @@ namespace TRTracker
             if (Input.GetKeyDown(KeyCode.F9)) {
                 if (TimeCtrl != null) TimeCtrl.ToggleFreeze();
             }
-            
-             if (UI_OBJ != null && UI_OBJ.activeSelf) {
-                Cursor.visible = true;
-                Cursor.lockState = CursorLockMode.None;
-            }
+
             if (UI_OBJ == null) CreateUI();
         }
         
@@ -260,7 +256,7 @@ namespace TRTracker
                 hTitle.transform.SetParent(header.transform, false);
                 Text ht = hTitle.AddComponent<Text>();
                 ht.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-                ht.text = "TR TAVERN TRACKER 2.0.0 (F1)";
+                ht.text = "TR TAVERN TRACKER 2.2.0 (F1)";
                 ht.alignment = TextAnchor.MiddleCenter;
                 ht.color = new Color(1f, 0.8f, 0.4f);
                 ht.fontSize = 14;
@@ -438,6 +434,7 @@ namespace TRTracker
                 // --- DRAG LOGIC ---
                 WindowDestroyer drag = header.AddComponent<WindowDestroyer>();
                 drag.TargetMover = panelRT;
+                OptimizeRaycast(UI_OBJ);
 
                 UI.Init(panelRT);
                 t.text = "Waiting for game data..."; 
@@ -445,6 +442,32 @@ namespace TRTracker
             catch (Exception ex) {
                 File.AppendAllText(TRTrackerPlugin.LogPath, "CreateUI CRASH: " + ex.ToString() + "\n");
             }
+        }
+
+        private static void OptimizeRaycast(GameObject root) {
+            if (root == null) return;
+            try {
+                Graphic[] graphics = root.GetComponentsInChildren<Graphic>();
+                foreach (Graphic g in graphics) {
+                    if (g == null) continue;
+                    // Sliders/toggles put their Selectable on a parent GO while the graphic that
+                    // must absorb the click sits on a child GO, so walk up the hierarchy.
+                    bool interactive = false;
+                    Transform t = g.transform;
+                    while (t != null) {
+                        GameObject go = t.gameObject;
+                        if (go.GetComponent<Selectable>() != null
+                            || go.GetComponent<IPointerClickHandler>() != null
+                            || go.GetComponent<IPointerDownHandler>() != null
+                            || go.GetComponent<IDragHandler>() != null) {
+                            interactive = true;
+                            break;
+                        }
+                        t = t.parent;
+                    }
+                    if (!interactive) g.raycastTarget = false;
+                }
+            } catch {}
         }
     }
     

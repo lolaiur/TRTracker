@@ -42,8 +42,8 @@ namespace TRStats
             Directory.CreateDirectory(logDir);
             LogPath = Path.Combine(logDir, "trstats_debug.txt");
             try { File.Delete(LogPath); } catch { }
-            File.WriteAllText(LogPath, "TRStats 2.1.0\n");
-            Logger.LogInfo("TRStats 2.1.0");
+            File.WriteAllText(LogPath, "TRStats 2.2.0\n");
+            Logger.LogInfo("TRStats 2.2.0");
 
             // Initialize config
             PlayerSpeedMultiplier = Config.Bind("Player", "SpeedMultiplier", 1.0f,
@@ -78,6 +78,18 @@ namespace TRStats
 
             // Initialize patch-specific config
             Patches.InitializeConfig(Config);
+
+            // Cheats are not persisted across sessions: force every cheat entry back to its neutral
+            // default on launch so a new save always loads vanilla (sliders at neutral, no overrides
+            // carried over from the previous session).
+            PlayerSpeedMultiplier.Value = 1.0f;
+            ExtraCustomerCapacity.Value = 0;
+            PriceModifier.Value = 0f;
+            InfiniteCoal.Value = false;
+            InfiniteWater.Value = false;
+            ServeSpeedSeconds.Value = 2;
+            CustomerSpeedMultiplier.Value = 1.0f;
+            Patches.EmployeeWorkAvoidanceMultiplier.Value = 1.0f;
 
             // Cleanup old manager if exists
             var old = FindObjectOfType<StatsManager>();
@@ -146,7 +158,13 @@ namespace TRStats
         private Toggle _infiniteWaterToggle;
         private Text _infoText;
         private Coroutine _loopCoroutine;
-        private float _infoUpdateInterval = 0.5f;
+        private float _infoUpdateInterval = 2f;
+        // Serve speed is an absolute override (timeTakingDrink = seconds), so "neutral" is not a
+        // no-op. Track whether the user has engaged it and remember each barworker's original timing
+        // so Reset can restore true vanilla instead of forcing an arbitrary value.
+        private bool _serveSpeedEngaged;
+        private readonly Dictionary<Barworker, float> _originalServeTaking = new Dictionary<Barworker, float>();
+        private readonly Dictionary<Barworker, float> _originalServeAfter = new Dictionary<Barworker, float>();
 
         void Start()
         {
@@ -178,7 +196,8 @@ namespace TRStats
             try {
                 if (_uiObj == null) CreateUI();
                 EnsureGameLoop();
-                ApplyServeSpeed();
+                // Serve speed is re-applied by the game loop only once the user engages it, so a fresh
+                // scene load stays vanilla instead of forcing the saved slider value onto barworkers.
             } catch { }
         }
 
@@ -210,6 +229,7 @@ namespace TRStats
                     UpdateInfoText();
                 }
                 ApplyCustomerSpeed();
+                if (_serveSpeedEngaged) ApplyServeSpeed();
                 yield return wait;
             }
         }
@@ -313,7 +333,7 @@ namespace TRStats
                 hTitle.transform.SetParent(header.transform, false);
                 Text ht = hTitle.AddComponent<Text>();
                 ht.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-                ht.text = "TR CHEATS 2.1.0 (F4)";
+                ht.text = "TR CHEATS 2.2.0 (F4)";
                 ht.alignment = TextAnchor.MiddleCenter;
                 ht.color = new Color(1f, 0.8f, 0.4f);
                 ht.fontSize = 14;
@@ -547,11 +567,37 @@ namespace TRStats
                 ResizeHandler rh = grip.AddComponent<ResizeHandler>();
                 rh.PanelRect = _panelRT;
 
+                OptimizeRaycast(_uiObj);
                 File.AppendAllText(Plugin.LogPath, "UI Created Successfully!\n");
-
             } catch (Exception ex) {
                 File.AppendAllText(Plugin.LogPath, "CreateUI Error: " + ex.ToString() + "\n");
             }
+        }
+
+        private static void OptimizeRaycast(GameObject root) {
+            if (root == null) return;
+            try {
+                Graphic[] graphics = root.GetComponentsInChildren<Graphic>();
+                foreach (Graphic g in graphics) {
+                    if (g == null) continue;
+                    // Sliders/toggles put their Selectable on a parent GO while the graphic that
+                    // must absorb the click sits on a child GO, so walk up the hierarchy.
+                    bool interactive = false;
+                    Transform t = g.transform;
+                    while (t != null) {
+                        GameObject go = t.gameObject;
+                        if (go.GetComponent<Selectable>() != null
+                            || go.GetComponent<IPointerClickHandler>() != null
+                            || go.GetComponent<IPointerDownHandler>() != null
+                            || go.GetComponent<IDragHandler>() != null) {
+                            interactive = true;
+                            break;
+                        }
+                        t = t.parent;
+                    }
+                    if (!interactive) g.raycastTarget = false;
+                }
+            } catch {}
         }
 
         float CreateSectionHeader(Transform parent, string text, float yPos)
@@ -809,6 +855,7 @@ namespace TRStats
             int seconds = Mathf.RoundToInt(_serveSpeedSlider.value);
             Plugin.ServeSpeedSeconds.Value = seconds;
             _serveSpeedText.text = seconds + "s";
+            _serveSpeedEngaged = true;
             ApplyServeSpeed();
         }
 
@@ -856,12 +903,39 @@ namespace TRStats
             {
                 if (bw == null) continue;
                 try {
+                    // Remember each barworker's vanilla timing the first time we touch it, so Reset
+                    // can put it back exactly rather than forcing an arbitrary default.
+                    if (!_originalServeTaking.ContainsKey(bw))
+                    {
+                        _originalServeTaking[bw] = bw.timeTakingDrink;
+                        _originalServeAfter[bw] = bw.timeAfterServe;
+                    }
                     bw.timeTakingDrink = seconds;
                     bw.timeAfterServe = seconds * 0.25f;
                     count++;
                 } catch {}
             }
             try { File.AppendAllText(Plugin.LogPath, "Serve speed set to " + seconds + "s on " + count + " barworkers\n"); } catch {}
+        }
+
+        // Restores each barworker's original serve timing captured by ApplyServeSpeed.
+        void ResetServeSpeed()
+        {
+            int restored = 0;
+            foreach (var pair in _originalServeTaking)
+            {
+                Barworker bw = pair.Key;
+                if (bw == null) continue;
+                try {
+                    bw.timeTakingDrink = pair.Value;
+                    float after;
+                    if (_originalServeAfter.TryGetValue(bw, out after)) bw.timeAfterServe = after;
+                    restored++;
+                } catch {}
+            }
+            _originalServeTaking.Clear();
+            _originalServeAfter.Clear();
+            try { File.AppendAllText(Plugin.LogPath, "Serve speed restored to vanilla on " + restored + " barworkers\n"); } catch {}
         }
 
         void WaterAllCrops()
@@ -1086,6 +1160,7 @@ namespace TRStats
                 }
 
                 File.AppendAllText(Plugin.LogPath, "Applied speed: " + Plugin.PlayerSpeedMultiplier.Value + "\n");
+                _serveSpeedEngaged = true;
                 ApplyServeSpeed();
             } catch (Exception ex) {
                 File.AppendAllText(Plugin.LogPath, "Apply Error: " + ex.Message + "\n");
@@ -1112,8 +1187,16 @@ namespace TRStats
             if (_serveSpeedSlider != null) _serveSpeedSlider.value = 2;
             if (_custSpeedSlider != null) _custSpeedSlider.value = 1.0f;
 
+            // Revert live game state to vanilla. Setting the serve slider above fired
+            // ApplyServeSpeed(2s); undo that by restoring each barworker's captured original timing
+            // and dropping the engaged flag so the game loop stops re-applying it.
+            _serveSpeedEngaged = false;
+            ResetServeSpeed();
+
             PlayerController player = PlayerController.GetPlayer(1);
             if (player != null) player.speed = 1f;
+            // Customer speed multiplier is now 1.0, so the game loop stops scaling customers. Any
+            // already-shortened timers finish out; new customers spawn at the vanilla rate.
 
             File.AppendAllText(Plugin.LogPath, "Reset to defaults\n");
         }
@@ -1233,6 +1316,6 @@ namespace TRStats
     {
         public const string PLUGIN_GUID = "com.trstats.mod";
         public const string PLUGIN_NAME = "TR Stats";
-        public const string PLUGIN_VERSION = "2.1.0";
+        public const string PLUGIN_VERSION = "2.2.0";
     }
 }

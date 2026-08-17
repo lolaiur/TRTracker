@@ -11,7 +11,7 @@ using TRShared;
 
 namespace TRBarPlugin
 {
-    [BepInPlugin("com.lolaiur.trbar", "TRBar", "2.0.0")]
+    [BepInPlugin("com.lolaiur.trbar", "TRBar", "2.2.0")]
     [BepInProcess("TravellersRest.exe")]
     public class TRBarPlugin : BaseUnityPlugin
     {
@@ -23,8 +23,8 @@ namespace TRBarPlugin
             Directory.CreateDirectory(logDir);
             LogPath = Path.Combine(logDir, "bar_debug.txt");
             try { File.Delete(LogPath); } catch {}
-            File.WriteAllText(LogPath, "TRBar 2.0.0\n");
-            Logger.LogInfo("TRBar 2.0.0");
+            File.WriteAllText(LogPath, "TRBar 2.2.0\n");
+            Logger.LogInfo("TRBar 2.2.0");
             
             // Cleanup old
             var old = FindObjectOfType<BarTrackerManager>();
@@ -145,7 +145,7 @@ namespace TRBarPlugin
         private List<FoodData> _food = new List<FoodData>();
         
         // Settings
-        private float _updateInterval = 1.0f;
+        private float _updateInterval = 2.0f;
         private float _rescanInterval = 5.0f;
         private float _nextDispenserScanTime = 0f;
         private Coroutine _loopCoroutine;
@@ -290,7 +290,7 @@ namespace TRBarPlugin
                     hTitle.transform.SetParent(header.transform, false);
                     Text ht = hTitle.AddComponent<Text>();
                     if (uiFont != null) ht.font = uiFont;
-                    ht.text = "TR BAR TRACKER 2.0.0 (F3)";
+                    ht.text = "TR BAR TRACKER 2.2.0 (F3)";
                     ht.alignment = TextAnchor.MiddleCenter;
                     ht.color = new Color(1f, 0.8f, 0.4f);
                     ht.fontSize = 14;
@@ -467,6 +467,7 @@ namespace TRBarPlugin
                 btn.onClick.AddListener(ch.OnToggle);
 
                 _mainText.text = "Waiting for data...";
+                OptimizeRaycast(_uiObj);
 
             } catch (Exception ex) {
                 try {
@@ -474,6 +475,32 @@ namespace TRBarPlugin
                     if (_uiObj != null) { Destroy(_uiObj); _uiObj = null; }
                 } catch {}
             }
+        }
+
+        private static void OptimizeRaycast(GameObject root) {
+            if (root == null) return;
+            try {
+                Graphic[] graphics = root.GetComponentsInChildren<Graphic>();
+                foreach (Graphic g in graphics) {
+                    if (g == null) continue;
+                    // Sliders/toggles put their Selectable on a parent GO while the graphic that
+                    // must absorb the click sits on a child GO, so walk up the hierarchy.
+                    bool interactive = false;
+                    Transform t = g.transform;
+                    while (t != null) {
+                        GameObject go = t.gameObject;
+                        if (go.GetComponent<Selectable>() != null
+                            || go.GetComponent<IPointerClickHandler>() != null
+                            || go.GetComponent<IPointerDownHandler>() != null
+                            || go.GetComponent<IDragHandler>() != null) {
+                            interactive = true;
+                            break;
+                        }
+                        t = t.parent;
+                    }
+                    if (!interactive) g.raycastTarget = false;
+                }
+            } catch {}
         }
 
         private void ScanBar()

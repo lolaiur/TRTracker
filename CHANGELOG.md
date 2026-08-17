@@ -1,12 +1,33 @@
 # Changelog
 
+## 2.2.0
+
+Supports game version 0.7.6.6.
+
+### All mods
+- Updated for the game's latest obfuscation pass. The obfuscated members the plugins hardcode were renamed and re-resolved, and the audit script now tracks them as canaries so the next game update flags them by name.
+- All UI refresh and scan intervals are 2 seconds. The faster loops caused periodic stutter.
+- Non-interactive UI graphics no longer have `raycastTarget`, so the mod windows stop intercepting clicks meant for the game underneath. Sliders and checkboxes keep working because the check walks up to parent objects that handle input.
+
+### TRStats
+- Cheats no longer persist across game restarts. Every launch starts at vanilla (neutral sliders, toggles off), so a session's 1x really means 1x instead of compounding on whatever the last session applied.
+- The Reset button restores true vanilla values, including barworker serve timing (previously it forced 2 seconds). Serve speed is captured when engaged and restored exactly; it is also no longer re-applied behind your back on scene changes.
+- Removed a per-frame cursor override that made the hardware cursor flash.
+
+### TRBarrels
+- Fixed the aging stage showing Unaged for finished barrels (a Grand Reserve read as Unaged). The stage now comes from the food's own aging-level value, the same one the game uses for the (Young)/(Reserve)/(Grand Reserve) name suffix, instead of estimating from the barrel timer, which reads zero once aging completes. Stage labels now match the game exactly: Unaged, Young, Reserve, Grand Reserve.
+- The percentage column keeps the live timer number while a barrel is actively aging, and shows 100% for finished ones.
+
+### TRAutoloader
+- Updated the obfuscated price-field lookup for the game update (item valuation for smart-fill).
+
 ## 2.1.0
 
 ### TRStats
 - Added **Serve Speed** slider (1-25 seconds) to the BAR section of F4. Controls how long barworkers take per serve.
 - Added **Customer Speed** slider (0.1x-3x) to the BAR section. Scales customer eating duration so tables free up faster (lower = faster turnover).
 
-## 2.0.0 (unreleased) — post-push fixes
+## 2.0.0
 
 ### Bug fixes
 - Fixed drink duplication: empty-drink-fill used direct slot transfer which bypassed the game's item tracking, causing bartenders to serve without consuming (extra drinks in player and multiplayer inventories). Now uses the game's AddItemInstance path so items are properly registered and consumed on serve.
@@ -16,8 +37,6 @@
 
 ### Aging tracker (TRBarrels)
 - Fixed quality items showing wrong aging stage. The stage scanner was picking up int properties from the item (including quality properties, e.g. "two dots" = value 2) and interpreting them as aging stages, showing unaged quality items as "Young" or "Normal". Now computes aging progress from the barrel's timer FIRST, and only scans item properties for stage if the item is actually aging (progress > 0). Unaged items always show "Unaged".
-
-In-progress major update on a local branch; not yet shipped.
 
 ### Performance
 - TRBar: cached the per-item reflection that walks the type hierarchy for the `item` field on every tap and food item each update cycle (GetItemName and IsSpecialItem). The FieldInfo is now looked up once per runtime type and reused, and the `nameId` / `id` fields on Item are cached statically. This eliminates the most frequent reflection in the bar tracker.
