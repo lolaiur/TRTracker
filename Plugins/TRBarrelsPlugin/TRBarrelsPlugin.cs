@@ -11,7 +11,7 @@ using TRShared;
 
 namespace TRBarrels
 {
-    [BepInPlugin("com.lolaiur.trbarrels", "Tavern Barrels", "2.2.0")]
+    [BepInPlugin("com.lolaiur.trbarrels", "Tavern Barrels", "2.2.1")]
     public class TRBarrelsPlugin : BaseUnityPlugin
     {
         public static TRBarrelsPlugin Instance;
@@ -106,7 +106,7 @@ namespace TRBarrels
                 hTitle.transform.SetParent(header.transform, false);
                 Text ht = hTitle.AddComponent<Text>();
                 ht.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-                ht.text = "TR AGING TRACKER 2.2.0 (F2)";
+                ht.text = "TR AGING TRACKER 2.2.1 (F2)";
                 ht.alignment = TextAnchor.MiddleCenter;
                 ht.color = new Color(1f, 0.8f, 0.4f);
                 ht.fontSize = 14;
@@ -569,10 +569,10 @@ namespace TRBarrels
                             // alternated between exposing this as a property and a plain field, so try both.
                             int agingLevel = -1;
                             try {
-                                PropertyInfo ageP = GetCachedProperty(_agingLevelProps, itemInst.GetType(), "GKAFDFGINHI");
+                                PropertyInfo ageP = GetCachedProperty(_agingLevelProps, itemInst.GetType(), "GALGEBMEJLA");
                                 if (ageP != null) agingLevel = (int)ageP.GetValue(itemInst, null);
                                 if (agingLevel < 0) {
-                                    FieldInfo ageF = GetCachedField(_agingLevelFields, itemInst.GetType(), "GKAFDFGINHI");
+                                    FieldInfo ageF = GetCachedField(_agingLevelFields, itemInst.GetType(), "GALGEBMEJLA");
                                     if (ageF != null) agingLevel = (int)ageF.GetValue(itemInst);
                                 }
                             } catch {}
