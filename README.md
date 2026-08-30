@@ -6,7 +6,7 @@
 
 A set of BepInEx plugins for Traveler's Rest: live tavern stats, barrel and bar panels, gameplay cheats, and automated food and drink loading.
 
-## Supported game version: 0.7.6.6
+## Supported game version: 0.7.6.9
 
 
 <img width="2557" height="972" alt="image" src="https://github.com/user-attachments/assets/3ab57655-5fba-4b39-a70c-d407a53b087f" />
