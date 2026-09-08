@@ -8,6 +8,39 @@ using UnityEngine.EventSystems;
 // resize / focus behavior. Namespace TRShared keeps it out of each mod's own namespace.
 namespace TRShared
 {
+    public static class UIRaycastUtil
+    {
+        // Unity's GraphicRaycaster tests every Graphic with raycastTarget enabled, so a panel full
+        // of labels and backdrops silently steals clicks meant for the game underneath. Turn the
+        // flag off for everything that does not actually handle input.
+        public static void Optimize(GameObject root)
+        {
+            if (root == null) return;
+            try {
+                Graphic[] graphics = root.GetComponentsInChildren<Graphic>();
+                foreach (Graphic g in graphics) {
+                    if (g == null) continue;
+                    // Sliders/toggles put their Selectable on a parent GO while the graphic that
+                    // must absorb the click sits on a child GO, so walk up the hierarchy.
+                    bool interactive = false;
+                    Transform t = g.transform;
+                    while (t != null) {
+                        GameObject go = t.gameObject;
+                        if (go.GetComponent<Selectable>() != null
+                            || go.GetComponent<IPointerClickHandler>() != null
+                            || go.GetComponent<IPointerDownHandler>() != null
+                            || go.GetComponent<IDragHandler>() != null) {
+                            interactive = true;
+                            break;
+                        }
+                        t = t.parent;
+                    }
+                    if (!interactive) g.raycastTarget = false;
+                }
+            } catch {}
+        }
+    }
+
     public static class WindowLayerUtil
     {
         public static void BringToFront(Component component)

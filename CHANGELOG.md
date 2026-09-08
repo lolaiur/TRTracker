@@ -1,5 +1,24 @@
 # Changelog
 
+## 2.3.0
+
+Performance and code-health pass across all five mods. No feature or behaviour changes.
+
+### Performance
+- **TRStats** no longer writes to the log file on every tick. With Serve Speed engaged it appended a line to disk every couple of seconds for the whole session; it now logs only when the applied value or the barworker count actually changes. The scene scan behind it also moved off the UI cadence, since it only exists to catch newly hired staff. Changing the slider still applies immediately.
+- **TRBar** caches the reflection it uses per tap and per food item. The dispenser tint lookup and the slot stack lookup were resolved fresh for every item on every scan; they are now resolved once per type, like the item-name lookup already was. This was the most frequent reflection left in the mod.
+- **TRBar** stopped rebuilding its previous-scan lookups with LINQ. Two dictionaries (plus closures) were allocated on every scan and are now reused.
+- **TRTracker** caches the six date-field lookups and the tavern open-state lookup it was resolving by name on every refresh, matching how the heat, dirt, and reputation lookups were already cached.
+- **TRTracker** no longer runs a full-scene search once a second for the whole session. Its manager survives scene loads, so it now holds a reference and only searches when that is genuinely gone.
+- **TRTracker** computes its earnings rate from the sample it just recorded instead of having LINQ walk the whole history queue twice per refresh.
+
+### Fixes
+- **TRStats** no longer holds on to barworkers the game has destroyed. The cache of original serve timings grew for the life of the session; destroyed staff are now dropped from it.
+
+### Code health
+- The raycast optimisation pass was copied verbatim into all five mods, which is how a past fix to it reached only some of them. It now lives once in the shared window kit.
+- Removed an unused import in TRTracker.
+
 ## 2.2.2
 
 Supports game version 0.7.6.11.

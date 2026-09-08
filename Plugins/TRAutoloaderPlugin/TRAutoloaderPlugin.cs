@@ -12,7 +12,7 @@ using TRShared;
 
 namespace TRAutoloaderPlugin
 {
-    [BepInPlugin("com.lolaiur.trautoloader", "TR Autoloader", "2.2.2")]
+    [BepInPlugin("com.lolaiur.trautoloader", "TR Autoloader", "2.3.0")]
     [BepInProcess("TravellersRest.exe")]
     public class Plugin : BaseUnityPlugin
     {
@@ -35,8 +35,8 @@ namespace TRAutoloaderPlugin
             LogPath = Path.Combine(logDir, "autoload_debug.txt");
             // Append (do not wipe) so test data survives game restarts for diagnosis.
             try { File.Delete(LogPath); } catch { }
-            File.WriteAllText(LogPath, "TR Autoloader 2.2.2\n");
-            Logger.LogInfo("TR Autoloader 2.2.2");
+            File.WriteAllText(LogPath, "TR Autoloader 2.3.0\n");
+            Logger.LogInfo("TR Autoloader 2.3.0");
 
             ToggleUIKey = Config.Bind("UI", "ToggleKey", KeyCode.F5,
                 "Key to toggle the autoloader UI");
@@ -270,7 +270,7 @@ namespace TRAutoloaderPlugin
                 hTitle.transform.SetParent(header.transform, false);
                 Text ht = hTitle.AddComponent<Text>();
                 ht.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-                ht.text = "TR AUTOLOADER 2.2.2 (F5)";
+                ht.text = "TR AUTOLOADER 2.3.0 (F5)";
                 ht.alignment = TextAnchor.MiddleCenter;
                 ht.color = new Color(1f, 0.8f, 0.4f);
                 ht.fontSize = 14;
@@ -367,37 +367,11 @@ namespace TRAutoloaderPlugin
                 infoRT.anchorMax = new Vector2(1, 1);
                 infoRT.pivot = new Vector2(0, 1);
 
-                OptimizeRaycast(_uiObj);
+                UIRaycastUtil.Optimize(_uiObj);
                 File.AppendAllText(Plugin.LogPath, "UI Created Successfully!\n");
             } catch (Exception ex) {
                 File.AppendAllText(Plugin.LogPath, "CreateUI Error: " + ex.ToString() + "\n");
             }
-        }
-
-        private static void OptimizeRaycast(GameObject root) {
-            if (root == null) return;
-            try {
-                Graphic[] graphics = root.GetComponentsInChildren<Graphic>();
-                foreach (Graphic g in graphics) {
-                    if (g == null) continue;
-                    // Sliders/toggles put their Selectable on a parent GO while the graphic that
-                    // must absorb the click sits on a child GO, so walk up the hierarchy.
-                    bool interactive = false;
-                    Transform t = g.transform;
-                    while (t != null) {
-                        GameObject go = t.gameObject;
-                        if (go.GetComponent<Selectable>() != null
-                            || go.GetComponent<IPointerClickHandler>() != null
-                            || go.GetComponent<IPointerDownHandler>() != null
-                            || go.GetComponent<IDragHandler>() != null) {
-                            interactive = true;
-                            break;
-                        }
-                        t = t.parent;
-                    }
-                    if (!interactive) g.raycastTarget = false;
-                }
-            } catch {}
         }
 
         float CreateSectionHeader(Transform parent, string text, float yPos)
@@ -2210,7 +2184,7 @@ namespace TRAutoloaderPlugin
     {
         public const string PLUGIN_GUID = "com.lolaiur.trautoloader";
         public const string PLUGIN_NAME = "TR Autoloader";
-        public const string PLUGIN_VERSION = "2.2.2";
+        public const string PLUGIN_VERSION = "2.3.0";
     }
 }
 

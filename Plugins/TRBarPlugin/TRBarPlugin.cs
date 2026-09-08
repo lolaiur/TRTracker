@@ -11,7 +11,7 @@ using TRShared;
 
 namespace TRBarPlugin
 {
-    [BepInPlugin("com.lolaiur.trbar", "TRBar", "2.2.0")]
+    [BepInPlugin("com.lolaiur.trbar", "TRBar", "2.3.0")]
     [BepInProcess("TravellersRest.exe")]
     public class TRBarPlugin : BaseUnityPlugin
     {
@@ -23,8 +23,8 @@ namespace TRBarPlugin
             Directory.CreateDirectory(logDir);
             LogPath = Path.Combine(logDir, "bar_debug.txt");
             try { File.Delete(LogPath); } catch {}
-            File.WriteAllText(LogPath, "TRBar 2.2.0\n");
-            Logger.LogInfo("TRBar 2.2.0");
+            File.WriteAllText(LogPath, "TRBar 2.3.0\n");
+            Logger.LogInfo("TRBar 2.3.0");
             
             // Cleanup old
             var old = FindObjectOfType<BarTrackerManager>();
@@ -143,6 +143,11 @@ namespace TRBarPlugin
 
         private List<KegData> _kegs = new List<KegData>();
         private List<FoodData> _food = new List<FoodData>();
+        // Previous-scan lookups and the food aggregator, reused across scans. These were rebuilt
+        // with LINQ ToDictionary on every pass, allocating a dictionary and closures each time.
+        private readonly Dictionary<int, KegData> _kegMap = new Dictionary<int, KegData>();
+        private readonly Dictionary<string, FoodData> _foodMap = new Dictionary<string, FoodData>();
+        private readonly Dictionary<string, FoodData> _foodCounts = new Dictionary<string, FoodData>();
         
         // Settings
         private float _updateInterval = 2.0f;
@@ -290,7 +295,7 @@ namespace TRBarPlugin
                     hTitle.transform.SetParent(header.transform, false);
                     Text ht = hTitle.AddComponent<Text>();
                     if (uiFont != null) ht.font = uiFont;
-                    ht.text = "TR BAR TRACKER 2.2.0 (F3)";
+                    ht.text = "TR BAR TRACKER 2.3.0 (F3)";
                     ht.alignment = TextAnchor.MiddleCenter;
                     ht.color = new Color(1f, 0.8f, 0.4f);
                     ht.fontSize = 14;
@@ -467,7 +472,7 @@ namespace TRBarPlugin
                 btn.onClick.AddListener(ch.OnToggle);
 
                 _mainText.text = "Waiting for data...";
-                OptimizeRaycast(_uiObj);
+                UIRaycastUtil.Optimize(_uiObj);
 
             } catch (Exception ex) {
                 try {
@@ -475,32 +480,6 @@ namespace TRBarPlugin
                     if (_uiObj != null) { Destroy(_uiObj); _uiObj = null; }
                 } catch {}
             }
-        }
-
-        private static void OptimizeRaycast(GameObject root) {
-            if (root == null) return;
-            try {
-                Graphic[] graphics = root.GetComponentsInChildren<Graphic>();
-                foreach (Graphic g in graphics) {
-                    if (g == null) continue;
-                    // Sliders/toggles put their Selectable on a parent GO while the graphic that
-                    // must absorb the click sits on a child GO, so walk up the hierarchy.
-                    bool interactive = false;
-                    Transform t = g.transform;
-                    while (t != null) {
-                        GameObject go = t.gameObject;
-                        if (go.GetComponent<Selectable>() != null
-                            || go.GetComponent<IPointerClickHandler>() != null
-                            || go.GetComponent<IPointerDownHandler>() != null
-                            || go.GetComponent<IDragHandler>() != null) {
-                            interactive = true;
-                            break;
-                        }
-                        t = t.parent;
-                    }
-                    if (!interactive) g.raycastTarget = false;
-                }
-            } catch {}
         }
 
         private void ScanBar()
@@ -523,7 +502,8 @@ namespace TRBarPlugin
                 }
 
                 // --- 2. Track Taps (Kegs) ---
-                var currentMap = _kegs.ToDictionary(k => k.Id, k => k);
+                _kegMap.Clear();
+                foreach (var prevKeg in _kegs) _kegMap[prevKeg.Id] = prevKeg;
                 _kegs.Clear();
 
                 if (_cachedDispensers.Length == 0 || Time.unscaledTime >= _nextDispenserScanTime)
@@ -547,19 +527,8 @@ namespace TRBarPlugin
                     string name = "Unknown";
                     string colorHex = "#FFFFFF";
                     
-                    try {
-                        FieldInfo fSpriteColor = d.GetType().GetField("_spriteColor", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                        if (fSpriteColor != null) {
-                            object scObj = fSpriteColor.GetValue(d);
-                            if (scObj != null) {
-                                var cField = scObj.GetType().GetField("color", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                                if (cField != null) {
-                                    Color c = (Color)cField.GetValue(scObj);
-                                    colorHex = "#" + ColorUtility.ToHtmlStringRGB(c);
-                                }
-                            }
-                        }
-                    } catch {}
+                    string dispenserColor = GetDispenserColorHex(d);
+                    if (dispenserColor != null) colorHex = dispenserColor;
 
                     var keg = slot.itemInstance as OldKegInstance;
 
@@ -568,16 +537,7 @@ namespace TRBarPlugin
                          name = GetItemName(keg);
                     } else if (slot.itemInstance is FoodInstance) {
                          name = GetItemName(slot.itemInstance);
-                         int stack = 1;
-                         try {
-                              FieldInfo fStack = slot.GetType().GetField("stack", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance); 
-                              if (fStack != null) stack = (int)fStack.GetValue(slot);
-                              else {
-                                  PropertyInfo pStack = slot.GetType().GetProperty("Stack");
-                                  if (pStack != null) stack = (int)pStack.GetValue(slot, null);
-                              }
-                         } catch {}
-                         qty = stack;
+                         qty = GetSlotStack(slot, 1);
                     } else {
                         continue;
                     }
@@ -602,7 +562,7 @@ namespace TRBarPlugin
 
                     float rate = 0;
                     KegData oldData;
-                    if (currentMap.TryGetValue(uniqueId, out oldData))
+                    if (_kegMap.TryGetValue(uniqueId, out oldData))
                     {
                         int diff = oldData.PreviousQty - qty;
                         if (diff < 0) {
@@ -632,12 +592,15 @@ namespace TRBarPlugin
                 _kegs.Sort((a,b) => a.Name.CompareTo(b.Name));
 
                 // --- 3. Track Food ---
-                var foodMap = _food.ToDictionary(f => f.Name, f => f); // previous scan, for flow rate
+                // previous scan, for flow rate (reused, see _kegMap above)
+                _foodMap.Clear();
+                foreach (var prevFood in _food) _foodMap[prevFood.Name] = prevFood;
                 _food.Clear();
                 // barInv is already initialized above for the dump logic
                 if (barInv != null && barInv.slots != null)
                 {
-                    var counts = new Dictionary<string, FoodData>();
+                    Dictionary<string, FoodData> counts = _foodCounts;
+                    counts.Clear();
                     foreach (var slot in barInv.slots)
                     {
                         if (slot != null && slot.itemInstance != null)
@@ -655,16 +618,7 @@ namespace TRBarPlugin
                             if (string.IsNullOrEmpty(name)) name = "Unknown";
                             
                             // Get Stack Size
-                            int stack = 1;
-                            try {
-                                  var t = slot.GetType();
-                                  FieldInfo f = t.GetField("stack", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                                  if (f != null) stack = (int)f.GetValue(slot);
-                                  else {
-                                      PropertyInfo p = t.GetProperty("Stack");
-                                      if (p != null) stack = (int)p.GetValue(slot, null);
-                                  }
-                            } catch {}
+                            int stack = GetSlotStack(slot, 1);
 
                             // Aggregation with ItemRef
                             if (counts.ContainsKey(name)) {
@@ -677,7 +631,7 @@ namespace TRBarPlugin
                     foreach (var foodData in counts.Values) {
                         // Flow rate (refill-tolerant, same approach as taps).
                         FoodData prev;
-                        if (foodMap.TryGetValue(foodData.Name, out prev)) {
+                        if (_foodMap.TryGetValue(foodData.Name, out prev)) {
                             int diff = prev.PreviousQty - foodData.Qty;
                             float rate;
                             if (diff < 0) rate = prev.FlowRate;
@@ -788,6 +742,64 @@ namespace TRBarPlugin
                 _itemFieldCache[type] = field;
             }
             return field;
+        }
+
+        // The dispenser sprite-colour holder and the slot stack accessor, resolved once per runtime
+        // type like the item field above. Both sit inside the per-tap and per-food-slot loops of
+        // every scan, so leaving them uncached made them the most frequent reflection in the mod.
+        private static readonly Dictionary<Type, FieldInfo> _spriteColorFieldCache = new Dictionary<Type, FieldInfo>();
+        private static readonly Dictionary<Type, FieldInfo> _colorFieldCache = new Dictionary<Type, FieldInfo>();
+        private static readonly Dictionary<Type, FieldInfo> _stackFieldCache = new Dictionary<Type, FieldInfo>();
+        private static readonly Dictionary<Type, PropertyInfo> _stackPropCache = new Dictionary<Type, PropertyInfo>();
+
+        private static FieldInfo GetCachedField(Dictionary<Type, FieldInfo> cache, Type type, string name)
+        {
+            if (type == null) return null;
+            FieldInfo field;
+            if (!cache.TryGetValue(type, out field))
+            {
+                field = type.GetField(name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                cache[type] = field;
+            }
+            return field;
+        }
+
+        // Slots expose the stack as a field on some builds and a property on others, so resolve
+        // whichever exists once per type and reuse it.
+        private static int GetSlotStack(object slot, int fallback)
+        {
+            if (slot == null) return fallback;
+            Type type = slot.GetType();
+            try {
+                FieldInfo field = GetCachedField(_stackFieldCache, type, "stack");
+                if (field != null) return (int)field.GetValue(slot);
+
+                PropertyInfo prop;
+                if (!_stackPropCache.TryGetValue(type, out prop))
+                {
+                    prop = type.GetProperty("Stack", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                    _stackPropCache[type] = prop;
+                }
+                if (prop != null) return (int)prop.GetValue(slot, null);
+            } catch {}
+            return fallback;
+        }
+
+        // The dispenser tint as "#RRGGBB", or null when the game does not expose one.
+        private static string GetDispenserColorHex(DrinkDispenser dispenser)
+        {
+            if (dispenser == null) return null;
+            try {
+                FieldInfo spriteColorField = GetCachedField(_spriteColorFieldCache, dispenser.GetType(), "_spriteColor");
+                if (spriteColorField == null) return null;
+                object spriteColor = spriteColorField.GetValue(dispenser);
+                if (spriteColor == null) return null;
+
+                FieldInfo colorField = GetCachedField(_colorFieldCache, spriteColor.GetType(), "color");
+                if (colorField == null) return null;
+                return "#" + ColorUtility.ToHtmlStringRGB((Color)colorField.GetValue(spriteColor));
+            } catch {}
+            return null;
         }
 
         // An item is "special" while its event is active (halloween food during halloween).

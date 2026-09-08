@@ -42,8 +42,8 @@ namespace TRStats
             Directory.CreateDirectory(logDir);
             LogPath = Path.Combine(logDir, "trstats_debug.txt");
             try { File.Delete(LogPath); } catch { }
-            File.WriteAllText(LogPath, "TRStats 2.2.0\n");
-            Logger.LogInfo("TRStats 2.2.0");
+            File.WriteAllText(LogPath, "TRStats 2.3.0\n");
+            Logger.LogInfo("TRStats 2.3.0");
 
             // Initialize config
             PlayerSpeedMultiplier = Config.Bind("Player", "SpeedMultiplier", 1.0f,
@@ -165,6 +165,10 @@ namespace TRStats
         private bool _serveSpeedEngaged;
         private readonly Dictionary<Barworker, float> _originalServeTaking = new Dictionary<Barworker, float>();
         private readonly Dictionary<Barworker, float> _originalServeAfter = new Dictionary<Barworker, float>();
+        private float _nextServeSpeedTime;
+        private float _loggedServeSeconds = -1f;
+        private int _loggedServeCount = -1;
+        private readonly List<Barworker> _destroyedBarworkers = new List<Barworker>();
 
         void Start()
         {
@@ -333,7 +337,7 @@ namespace TRStats
                 hTitle.transform.SetParent(header.transform, false);
                 Text ht = hTitle.AddComponent<Text>();
                 ht.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-                ht.text = "TR CHEATS 2.2.0 (F4)";
+                ht.text = "TR CHEATS 2.3.0 (F4)";
                 ht.alignment = TextAnchor.MiddleCenter;
                 ht.color = new Color(1f, 0.8f, 0.4f);
                 ht.fontSize = 14;
@@ -567,37 +571,11 @@ namespace TRStats
                 ResizeHandler rh = grip.AddComponent<ResizeHandler>();
                 rh.PanelRect = _panelRT;
 
-                OptimizeRaycast(_uiObj);
+                UIRaycastUtil.Optimize(_uiObj);
                 File.AppendAllText(Plugin.LogPath, "UI Created Successfully!\n");
             } catch (Exception ex) {
                 File.AppendAllText(Plugin.LogPath, "CreateUI Error: " + ex.ToString() + "\n");
             }
-        }
-
-        private static void OptimizeRaycast(GameObject root) {
-            if (root == null) return;
-            try {
-                Graphic[] graphics = root.GetComponentsInChildren<Graphic>();
-                foreach (Graphic g in graphics) {
-                    if (g == null) continue;
-                    // Sliders/toggles put their Selectable on a parent GO while the graphic that
-                    // must absorb the click sits on a child GO, so walk up the hierarchy.
-                    bool interactive = false;
-                    Transform t = g.transform;
-                    while (t != null) {
-                        GameObject go = t.gameObject;
-                        if (go.GetComponent<Selectable>() != null
-                            || go.GetComponent<IPointerClickHandler>() != null
-                            || go.GetComponent<IPointerDownHandler>() != null
-                            || go.GetComponent<IDragHandler>() != null) {
-                            interactive = true;
-                            break;
-                        }
-                        t = t.parent;
-                    }
-                    if (!interactive) g.raycastTarget = false;
-                }
-            } catch {}
         }
 
         float CreateSectionHeader(Transform parent, string text, float yPos)
@@ -856,6 +834,8 @@ namespace TRStats
             Plugin.ServeSpeedSeconds.Value = seconds;
             _serveSpeedText.text = seconds + "s";
             _serveSpeedEngaged = true;
+            // A user action applies now; do not make them wait for the periodic re-scan.
+            _nextServeSpeedTime = 0f;
             ApplyServeSpeed();
         }
 
@@ -896,6 +876,11 @@ namespace TRStats
 
         void ApplyServeSpeed()
         {
+            // Re-applying exists to catch newly hired staff, and hiring is rare, so the
+            // scene scan runs on a slower cadence than the UI loop, not on every tick.
+            if (Time.unscaledTime < _nextServeSpeedTime) return;
+            _nextServeSpeedTime = Time.unscaledTime + 5f;
+
             float seconds = (float)Plugin.ServeSpeedSeconds.Value;
             Barworker[] barworkers = FindObjectsOfType<Barworker>();
             int count = 0;
@@ -915,7 +900,33 @@ namespace TRStats
                     count++;
                 } catch {}
             }
-            try { File.AppendAllText(Plugin.LogPath, "Serve speed set to " + seconds + "s on " + count + " barworkers\n"); } catch {}
+
+            ForgetDestroyedBarworkers();
+
+            // Only log when the result actually changes. This used to append to the log on
+            // every tick, a synchronous disk write every couple of seconds all session.
+            if (seconds != _loggedServeSeconds || count != _loggedServeCount)
+            {
+                _loggedServeSeconds = seconds;
+                _loggedServeCount = count;
+                try { File.AppendAllText(Plugin.LogPath, "Serve speed set to " + seconds + "s on " + count + " barworkers\n"); } catch {}
+            }
+        }
+
+        // Barworkers destroyed by the game (fired, or a scene change) would otherwise sit in the
+        // originals cache for the rest of the session, so drop them once Unity reports them dead.
+        void ForgetDestroyedBarworkers()
+        {
+            _destroyedBarworkers.Clear();
+            foreach (var pair in _originalServeTaking)
+            {
+                if (pair.Key == null) _destroyedBarworkers.Add(pair.Key);
+            }
+            foreach (Barworker dead in _destroyedBarworkers)
+            {
+                _originalServeTaking.Remove(dead);
+                _originalServeAfter.Remove(dead);
+            }
         }
 
         // Restores each barworker's original serve timing captured by ApplyServeSpeed.
@@ -935,6 +946,9 @@ namespace TRStats
             }
             _originalServeTaking.Clear();
             _originalServeAfter.Clear();
+            _loggedServeSeconds = -1f;
+            _loggedServeCount = -1;
+            _nextServeSpeedTime = 0f;
             try { File.AppendAllText(Plugin.LogPath, "Serve speed restored to vanilla on " + restored + " barworkers\n"); } catch {}
         }
 
@@ -1161,6 +1175,8 @@ namespace TRStats
 
                 File.AppendAllText(Plugin.LogPath, "Applied speed: " + Plugin.PlayerSpeedMultiplier.Value + "\n");
                 _serveSpeedEngaged = true;
+                // A user action applies now; do not make them wait for the periodic re-scan.
+                _nextServeSpeedTime = 0f;
                 ApplyServeSpeed();
             } catch (Exception ex) {
                 File.AppendAllText(Plugin.LogPath, "Apply Error: " + ex.Message + "\n");
@@ -1316,6 +1332,6 @@ namespace TRStats
     {
         public const string PLUGIN_GUID = "com.trstats.mod";
         public const string PLUGIN_NAME = "TR Stats";
-        public const string PLUGIN_VERSION = "2.2.0";
+        public const string PLUGIN_VERSION = "2.3.0";
     }
 }
