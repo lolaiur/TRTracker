@@ -12,7 +12,7 @@ using TRShared;
 
 namespace TRAutoloaderPlugin
 {
-    [BepInPlugin("com.lolaiur.trautoloader", "TR Autoloader", "2.2.1")]
+    [BepInPlugin("com.lolaiur.trautoloader", "TR Autoloader", "2.2.2")]
     [BepInProcess("TravellersRest.exe")]
     public class Plugin : BaseUnityPlugin
     {
@@ -35,8 +35,8 @@ namespace TRAutoloaderPlugin
             LogPath = Path.Combine(logDir, "autoload_debug.txt");
             // Append (do not wipe) so test data survives game restarts for diagnosis.
             try { File.Delete(LogPath); } catch { }
-            File.WriteAllText(LogPath, "TR Autoloader 2.2.1\n");
-            Logger.LogInfo("TR Autoloader 2.2.1");
+            File.WriteAllText(LogPath, "TR Autoloader 2.2.2\n");
+            Logger.LogInfo("TR Autoloader 2.2.2");
 
             ToggleUIKey = Config.Bind("UI", "ToggleKey", KeyCode.F5,
                 "Key to toggle the autoloader UI");
@@ -270,7 +270,7 @@ namespace TRAutoloaderPlugin
                 hTitle.transform.SetParent(header.transform, false);
                 Text ht = hTitle.AddComponent<Text>();
                 ht.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-                ht.text = "TR AUTOLOADER 2.2.1 (F5)";
+                ht.text = "TR AUTOLOADER 2.2.2 (F5)";
                 ht.alignment = TextAnchor.MiddleCenter;
                 ht.color = new Color(1f, 0.8f, 0.4f);
                 ht.fontSize = 14;
@@ -1755,7 +1755,7 @@ namespace TRAutoloaderPlugin
             FieldInfo field;
             if (_priceFieldCache.TryGetValue(type, out field)) return field;
 
-            field = FindFieldOnType(type, "JOKIOEMCNKP");
+            field = FindFieldOnType(type, "APJGNLOMDKB");
             _priceFieldCache[type] = field;
             return field;
         }
@@ -2210,7 +2210,7 @@ namespace TRAutoloaderPlugin
     {
         public const string PLUGIN_GUID = "com.lolaiur.trautoloader";
         public const string PLUGIN_NAME = "TR Autoloader";
-        public const string PLUGIN_VERSION = "2.2.1";
+        public const string PLUGIN_VERSION = "2.2.2";
     }
 }
 
