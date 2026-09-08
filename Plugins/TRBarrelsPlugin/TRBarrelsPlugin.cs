@@ -11,7 +11,7 @@ using TRShared;
 
 namespace TRBarrels
 {
-    [BepInPlugin("com.lolaiur.trbarrels", "Tavern Barrels", "2.2.2")]
+    [BepInPlugin("com.lolaiur.trbarrels", "Tavern Barrels", "2.3.0")]
     public class TRBarrelsPlugin : BaseUnityPlugin
     {
         public static TRBarrelsPlugin Instance;
@@ -106,7 +106,7 @@ namespace TRBarrels
                 hTitle.transform.SetParent(header.transform, false);
                 Text ht = hTitle.AddComponent<Text>();
                 ht.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-                ht.text = "TR AGING TRACKER 2.2.2 (F2)";
+                ht.text = "TR AGING TRACKER 2.3.0 (F2)";
                 ht.alignment = TextAnchor.MiddleCenter;
                 ht.color = new Color(1f, 0.8f, 0.4f);
                 ht.fontSize = 14;
@@ -275,35 +275,9 @@ namespace TRBarrels
                 mgr.TextName = CreateColumn(content.transform, "ColName", 10, 165, TextAnchor.UpperLeft);
                 mgr.TextStage = CreateColumn(content.transform, "ColStage", 170, 235, TextAnchor.UpperCenter);
                 mgr.TextTime = CreateColumn(content.transform, "ColTime", 240, 330, TextAnchor.UpperRight);
-                OptimizeRaycast(UI_OBJ);
+                UIRaycastUtil.Optimize(UI_OBJ);
             }
             catch {}
-        }
-
-        private static void OptimizeRaycast(GameObject root) {
-            if (root == null) return;
-            try {
-                Graphic[] graphics = root.GetComponentsInChildren<Graphic>();
-                foreach (Graphic g in graphics) {
-                    if (g == null) continue;
-                    // Sliders/toggles put their Selectable on a parent GO while the graphic that
-                    // must absorb the click sits on a child GO, so walk up the hierarchy.
-                    bool interactive = false;
-                    Transform t = g.transform;
-                    while (t != null) {
-                        GameObject go = t.gameObject;
-                        if (go.GetComponent<Selectable>() != null
-                            || go.GetComponent<IPointerClickHandler>() != null
-                            || go.GetComponent<IPointerDownHandler>() != null
-                            || go.GetComponent<IDragHandler>() != null) {
-                            interactive = true;
-                            break;
-                        }
-                        t = t.parent;
-                    }
-                    if (!interactive) g.raycastTarget = false;
-                }
-            } catch {}
         }
 
         void CreateHeaderText(Transform parent, string txt, float xMin, float xMax, TextAnchor align)

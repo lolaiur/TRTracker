@@ -3,7 +3,6 @@ using System.IO;
 using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
-using System.Linq;
 using BepInEx;
 using HarmonyLib; 
 using UnityEngine;
@@ -14,7 +13,7 @@ using TRShared;
 
 namespace TRTracker
 {
-    [BepInPlugin("com.lolaiur.trtracker", "Tavern Tracker", "2.2.0")]
+    [BepInPlugin("com.lolaiur.trtracker", "Tavern Tracker", "2.3.0")]
     public class TRTrackerPlugin : BaseUnityPlugin
     {
         public static TRTrackerPlugin Instance;
@@ -27,7 +26,7 @@ namespace TRTracker
              Directory.CreateDirectory(logDir);
              LogPath = Path.Combine(logDir, "tracker_debug.txt");
              try { if (File.Exists(LogPath)) File.Delete(LogPath); } catch { }
-             try { File.WriteAllText(LogPath, "TRTracker 2.2.0\n"); } catch { }
+             try { File.WriteAllText(LogPath, "TRTracker 2.3.0\n"); } catch { }
              
              // Cleanup old
              var old = FindObjectOfType<TrackerManager>();
@@ -75,13 +74,20 @@ namespace TRTracker
             EnsureManagerForScene(SceneManager.GetActiveScene().name);
         }
 
+        // The manager survives scene loads, so keep a direct reference and only fall back to a
+        // full-scene search once it is actually gone. This check runs every second for the whole
+        // session, and FindObjectOfType walks every object in the scene.
+        private static TrackerManager _managerRef;
+
         private void EnsureManagerForScene(string sceneName)
         {
-            if (FindObjectOfType<TrackerManager>() != null) return;
+            if (_managerRef != null) return;
+            _managerRef = FindObjectOfType<TrackerManager>();
+            if (_managerRef != null) return;
             if (string.IsNullOrEmpty(sceneName)) return;
             GameObject go = new GameObject("TRTracker_Manager");
             DontDestroyOnLoad(go);
-            go.AddComponent<TrackerManager>();
+            _managerRef = go.AddComponent<TrackerManager>();
             File.AppendAllText(LogPath, "Created manager for scene " + sceneName + "\n");
         }
     }
@@ -256,7 +262,7 @@ namespace TRTracker
                 hTitle.transform.SetParent(header.transform, false);
                 Text ht = hTitle.AddComponent<Text>();
                 ht.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-                ht.text = "TR TAVERN TRACKER 2.2.0 (F1)";
+                ht.text = "TR TAVERN TRACKER 2.3.0 (F1)";
                 ht.alignment = TextAnchor.MiddleCenter;
                 ht.color = new Color(1f, 0.8f, 0.4f);
                 ht.fontSize = 14;
@@ -434,7 +440,7 @@ namespace TRTracker
                 // --- DRAG LOGIC ---
                 WindowDestroyer drag = header.AddComponent<WindowDestroyer>();
                 drag.TargetMover = panelRT;
-                OptimizeRaycast(UI_OBJ);
+                UIRaycastUtil.Optimize(UI_OBJ);
 
                 UI.Init(panelRT);
                 t.text = "Waiting for game data..."; 
@@ -444,31 +450,6 @@ namespace TRTracker
             }
         }
 
-        private static void OptimizeRaycast(GameObject root) {
-            if (root == null) return;
-            try {
-                Graphic[] graphics = root.GetComponentsInChildren<Graphic>();
-                foreach (Graphic g in graphics) {
-                    if (g == null) continue;
-                    // Sliders/toggles put their Selectable on a parent GO while the graphic that
-                    // must absorb the click sits on a child GO, so walk up the hierarchy.
-                    bool interactive = false;
-                    Transform t = g.transform;
-                    while (t != null) {
-                        GameObject go = t.gameObject;
-                        if (go.GetComponent<Selectable>() != null
-                            || go.GetComponent<IPointerClickHandler>() != null
-                            || go.GetComponent<IPointerDownHandler>() != null
-                            || go.GetComponent<IDragHandler>() != null) {
-                            interactive = true;
-                            break;
-                        }
-                        t = t.parent;
-                    }
-                    if (!interactive) g.raycastTarget = false;
-                }
-            } catch {}
-        }
     }
     
     public static class WindowLayerUtil
@@ -644,7 +625,9 @@ namespace TRTracker
                 float now = Time.unscaledTime;
                 fh.Enqueue(new KeyValuePair<float,long>(now, currentTotal));
                 while(fh.Count>0 && (now-fh.Peek().Key)>60f) fh.Dequeue();
-                if(fh.Count>1) { float dt=fh.Last().Key-fh.Peek().Key; long dc=fh.Last().Value-fh.Peek().Value; if(dt>1f) RateMin=((dc/dt)*60f)/10000f; }
+                // The pair just enqueued is by definition the newest, so use it directly rather
+                // than having LINQ walk the whole queue twice on every refresh.
+                if(fh.Count>1) { float dt=now-fh.Peek().Key; long dc=currentTotal-fh.Peek().Value; if(dt>1f) RateMin=((dc/dt)*60f)/10000f; }
             } else { 
                 SessionProfit=0; 
                 SessionXD=0; 
@@ -797,6 +780,24 @@ namespace TRTracker
         // expensive part; caching it removes that from the hot path.
         private static Type _worldTimeType;
         private static PropertyInfo _levelProp, _heatProp, _dirtProp;
+        // GameDate members, resolved once. These were six Type.GetField name lookups on every
+        // refresh, alongside the _open field lookup below.
+        private static Type _gameDateType;
+        private static FieldInfo _dateHour, _dateMin, _dateYear, _dateSeason, _dateWeek, _dateDay;
+        private static FieldInfo _openField;
+        private static bool _openFieldResolved;
+
+        private static void CacheGameDateFields(Type dateType)
+        {
+            if (_gameDateType == dateType) return;
+            _gameDateType = dateType;
+            _dateHour = dateType.GetField("hour");
+            _dateMin = dateType.GetField("min");
+            _dateYear = dateType.GetField("year");
+            _dateSeason = dateType.GetField("season");
+            _dateWeek = dateType.GetField("week");
+            _dateDay = dateType.GetField("day");
+        }
         public static void ResetDump() {}
 
         public static void Refresh() {
@@ -810,7 +811,11 @@ namespace TRTracker
         }
 
         private static bool GetOpenState(TavernManager tm) {
-            FieldInfo openField = typeof(TavernManager).GetField("_open", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+            if (!_openFieldResolved) {
+                _openFieldResolved = true;
+                _openField = typeof(TavernManager).GetField("_open", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+            }
+            FieldInfo openField = _openField;
             if (openField != null && openField.FieldType == typeof(bool)) {
                 try { return (bool)openField.GetValue(tm); } catch {}
             }
@@ -836,15 +841,17 @@ namespace TRTracker
                  Type wt = _worldTimeType ?? (_worldTimeType = Type.GetType("WorldTime, Assembly-CSharp"));
                  object d = GameReflection.GetStaticValueByType(wt, typeof(GameDate));
                  if (d == null) return;
-                 Type dt=d.GetType();
-                 int h=(int)dt.GetField("hour").GetValue(d);
-                 int m=(int)dt.GetField("min").GetValue(d);
+                 CacheGameDateFields(d.GetType());
+                 if (_dateHour == null || _dateMin == null || _dateYear == null
+                     || _dateSeason == null || _dateWeek == null || _dateDay == null) return;
+                 int h=(int)_dateHour.GetValue(d);
+                 int m=(int)_dateMin.GetValue(d);
                  string tStr=string.Format("{0}:{1:00} {2}", (h<=12?h:h-12)==0?12:(h<=12?h:h-12), m, h<12?"AM":"PM");
-                 
-                 var year = dt.GetField("year").GetValue(d);
-                 var season = dt.GetField("season").GetValue(d);
-                 int week = (int)dt.GetField("week").GetValue(d);
-                 object dayObj = dt.GetField("day").GetValue(d); 
+
+                 var year = _dateYear.GetValue(d);
+                 var season = _dateSeason.GetValue(d);
+                 int week = (int)_dateWeek.GetValue(d);
+                 object dayObj = _dateDay.GetValue(d); 
                  string dayName = dayObj.ToString(); 
                  if (dayName.Length > 3) dayName = dayName.Substring(0, 3);
                  int dayInt = (int)dayObj; 
