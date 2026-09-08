@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.2.2
+
+Supports game version 0.7.6.11.
+
+### TRBarrels (2.2.2), TRAutoloader (2.2.2)
+- Compatibility with the game's latest obfuscation pass. The FoodInstance aging-level member (still a property, same 0/2/3/4 values) and the cached-price field were renamed again and re-resolved. No behavior change.
+
 ## 2.2.1
 
 Supports game version 0.7.6.9.

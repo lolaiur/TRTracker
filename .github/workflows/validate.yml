@@ -35,9 +35,9 @@ jobs:
         echo "Checking plugin versions..."
         grep -q 'BepInPlugin.*2\.2\.0' Plugins/TRTrackerPlugin/TRTrackerPlugin.cs && echo "✓ TRTrackerPlugin v2.2.0"
         grep -q 'BepInPlugin.*2\.2\.0' Plugins/TRBarPlugin/TRBarPlugin.cs && echo "✓ TRBarPlugin v2.2.0"
-        grep -q 'BepInPlugin.*2\.2\.1' Plugins/TRBarrelsPlugin/TRBarrelsPlugin.cs && echo "✓ TRBarrelsPlugin v2.2.1"
+        grep -q 'BepInPlugin.*2\.2\.2' Plugins/TRBarrelsPlugin/TRBarrelsPlugin.cs && echo "✓ TRBarrelsPlugin v2.2.2"
         grep -q 'PLUGIN_VERSION = "2\.2\.0"' Plugins/TRStatsPlugin/TRStatsPlugin.cs && echo "✓ TRStatsPlugin v2.2.0"
-        grep -q 'BepInPlugin.*2\.2\.1' Plugins/TRAutoloaderPlugin/TRAutoloaderPlugin.cs && echo "✓ TRAutoloaderPlugin v2.2.1"
+        grep -q 'BepInPlugin.*2\.2\.2' Plugins/TRAutoloaderPlugin/TRAutoloaderPlugin.cs && echo "✓ TRAutoloaderPlugin v2.2.2"
 
     - name: Basic C# syntax validation
       run: |
