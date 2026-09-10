@@ -6,7 +6,7 @@
 
 A set of BepInEx plugins for Traveler's Rest: live tavern stats, barrel and bar panels, gameplay cheats, and automated food and drink loading.
 
-## Supported game version: 0.7.6.11
+## Supported game version: 0.7.6.12
 
 
 <img width="2557" height="972" alt="image" src="https://github.com/user-attachments/assets/3ab57655-5fba-4b39-a70c-d407a53b087f" />
@@ -29,7 +29,7 @@ Tracks aging barrels and shows aging progress and ready drinks across all of the
 Extra bar panel showing the drinks on tap, current stock, and flow rates.
 
 ### 🍔 TRStats (F4)
-Cheats and gameplay tweaks: player speed, customer capacity, price modifiers, employee work avoidance, infinite coal and water, crop watering and instant-grow tools, one-click animal care, barworker serve speed, and customer eating speed. Cheat values reset to vanilla on every game launch (they are not saved), and the Reset button restores true vanilla defaults.
+Cheats and gameplay tweaks: player speed, customer capacity, price modifiers, employee work avoidance, infinite coal, water, and magic fuel, a magic fuel spawner that drops the quantity you type at your feet, crop watering and instant-grow tools, one-click animal care, barworker serve speed, and customer eating speed. Cheat values reset to vanilla on every game launch (they are not saved), and the Reset button restores true vanilla defaults.
 
 ### 🔄 TRAutoloader (F5)
 Keeps the bar menu stocked and tops off beer taps, kegs, and bar barrels from a loader container you assign. Each dispenser keeps the drink it already holds (it never mixes drinks, so put the drink you want in a dispenser once and it stays topped off). It has an on/off toggle, a configurable refill interval, and a rolling action feed in the panel.

@@ -59,6 +59,74 @@ namespace TRStats
             }
         }
 
+        // Every method on a fuel host that stores to its fuel field with the (int amount, bool sync)
+        // shape. The obfuscator emits renamed copies of SetFuel and the game calls several of them
+        // (the book stand's imbue session spends fuel through SetFuel and a clone), so patching
+        // SetFuel by name alone lets part of the spending through.
+        public static IEnumerable<MethodBase> FindFuelWriters(Type hostType)
+        {
+            List<MethodBase> found = new List<MethodBase>();
+            foreach (MethodInfo method in hostType.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly))
+            {
+                if (method.ReturnType != typeof(void)) continue;
+
+                ParameterInfo[] parameters = method.GetParameters();
+                if (parameters.Length != 2) continue;
+                if (parameters[0].ParameterType != typeof(int) || parameters[1].ParameterType != typeof(bool)) continue;
+
+                // Require a store, not just a read: the prefix rewrites the first int argument, so a
+                // method that only reads fuel would have an unrelated argument changed.
+                if (MethodStoresField(method, hostType.Name, "fuel")) found.Add(method);
+            }
+
+            // PatchAll throws on a patch class with no targets, which also skips every patch class
+            // after it. SetFuel implements IFuelHost, so its name is stable enough to fall back on.
+            if (found.Count == 0)
+            {
+                MethodInfo setFuel = hostType.GetMethod("SetFuel", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                if (setFuel != null) found.Add(setFuel);
+            }
+            return found;
+        }
+
+        private static bool MethodStoresField(MethodInfo method, string declaringTypeName, string fieldName)
+        {
+            MethodBody body = method.GetMethodBody();
+            if (body == null) return false;
+
+            byte[] il = body.GetILAsByteArray();
+            Module module = method.Module;
+            int index = 0;
+
+            while (index < il.Length)
+            {
+                OpCode op;
+                byte value = il[index++];
+                if (value == 0xfe) op = TwoByteOpCodes[il[index++]];
+                else op = OneByteOpCodes[value];
+
+                int operandStart = index;
+                int operandSize = GetOperandSize(op.OperandType, il, operandStart);
+
+                if (op == OpCodes.Stfld)
+                {
+                    FieldInfo field = null;
+                    try { field = module.ResolveField(BitConverter.ToInt32(il, operandStart)); } catch {}
+                    if (field != null &&
+                        field.DeclaringType != null &&
+                        field.DeclaringType.Name == declaringTypeName &&
+                        field.Name == fieldName)
+                    {
+                        return true;
+                    }
+                }
+
+                index += operandSize;
+            }
+
+            return false;
+        }
+
         private static bool MethodReferences(MethodInfo method, string declaringTypeName, string memberName)
         {
             MethodBody body = method.GetMethodBody();
@@ -276,28 +344,69 @@ namespace TRStats
             }
         }
 
+        // The fuel field on each host, resolved once. Harmony's ___fuel injection would be shorter,
+        // but a renamed field would then throw inside PatchAll and take every other patch with it;
+        // a null FieldInfo here just leaves that one cheat inactive.
+        internal static class FuelHosts
+        {
+            internal static readonly FieldInfo CrafterFuel =
+                typeof(Crafter).GetField("fuel", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            internal static readonly FieldInfo BookStandFuel =
+                typeof(MagicBookStand).GetField("fuel", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+
+            // Keep fuel from going down: a lower value means the game is spending it. Adding fuel
+            // raises the value and passes through untouched.
+            internal static void BlockSpend(FieldInfo fuelField, object host, ref int newFuel)
+            {
+                if (fuelField == null || host == null) return;
+                try {
+                    int current = (int)fuelField.GetValue(host);
+                    if (newFuel < current) newFuel = current;
+                } catch {}
+            }
+        }
+
         /// <summary>
-        /// Patch Crafter (brewing tanks, etc.) to prevent fuel consumption when infinite coal is enabled
+        /// Crafters keep their fuel while the matching cheat is on. Arcane crafters (Arcane Oven,
+        /// Arcane Distillery) burn magic fuel and follow Infinite Magic Fuel; the rest burn coal.
         /// </summary>
         [HarmonyPatch(typeof(Crafter))]
         public static class CrafterPatches
         {
-            [HarmonyPatch("SetFuel")]
-            [HarmonyPrefix]
-            public static bool SetFuel_Prefix(Crafter __instance, ref int __0)
+            [HarmonyTargetMethods]
+            public static IEnumerable<MethodBase> TargetMethods()
             {
-                if (Plugin.InfiniteCoal != null && Plugin.InfiniteCoal.Value)
-                {
-                    // Get current fuel via property
-                    int currentFuel = TRStatsReflection.GetCrafterFuel(__instance);
+                return PatchTargetFinder.FindFuelWriters(typeof(Crafter));
+            }
 
-                    // If new fuel would be less than current (consumption), prevent it
-                    if (__0 < currentFuel)
-                    {
-                        __0 = currentFuel;
-                    }
-                }
-                return true; // Continue with original method
+            [HarmonyPrefix]
+            public static void FuelWrite_Prefix(Crafter __instance, ref int __0)
+            {
+                if (__instance == null) return;
+                ConfigEntry<bool> cheat = __instance.arcaneCrafter ? Plugin.InfiniteMagicFuel : Plugin.InfiniteCoal;
+                if (cheat == null || !cheat.Value) return;
+                FuelHosts.BlockSpend(FuelHosts.CrafterFuel, __instance, ref __0);
+            }
+        }
+
+        /// <summary>
+        /// The Arcane Book Stand spends magic fuel when imbuing spells. It keeps its fuel while
+        /// Infinite Magic Fuel is on.
+        /// </summary>
+        [HarmonyPatch(typeof(MagicBookStand))]
+        public static class MagicBookStandPatches
+        {
+            [HarmonyTargetMethods]
+            public static IEnumerable<MethodBase> TargetMethods()
+            {
+                return PatchTargetFinder.FindFuelWriters(typeof(MagicBookStand));
+            }
+
+            [HarmonyPrefix]
+            public static void FuelWrite_Prefix(MagicBookStand __instance, ref int __0)
+            {
+                if (Plugin.InfiniteMagicFuel == null || !Plugin.InfiniteMagicFuel.Value) return;
+                FuelHosts.BlockSpend(FuelHosts.BookStandFuel, __instance, ref __0);
             }
         }
 

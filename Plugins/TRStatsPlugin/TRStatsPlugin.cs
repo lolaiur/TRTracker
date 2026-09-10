@@ -28,6 +28,7 @@ namespace TRStats
 
         // New toggles
         public static ConfigEntry<bool> InfiniteCoal;
+        public static ConfigEntry<bool> InfiniteMagicFuel;
         public static ConfigEntry<bool> InfiniteWater;
         public static ConfigEntry<bool> SkipMinePiecePoolPrewarm;
         public static ConfigEntry<int> ServeSpeedSeconds;
@@ -42,8 +43,8 @@ namespace TRStats
             Directory.CreateDirectory(logDir);
             LogPath = Path.Combine(logDir, "trstats_debug.txt");
             try { File.Delete(LogPath); } catch { }
-            File.WriteAllText(LogPath, "TRStats 2.3.0\n");
-            Logger.LogInfo("TRStats 2.3.0");
+            File.WriteAllText(LogPath, "TRStats 2.4.0\n");
+            Logger.LogInfo("TRStats 2.4.0");
 
             // Initialize config
             PlayerSpeedMultiplier = Config.Bind("Player", "SpeedMultiplier", 1.0f,
@@ -60,7 +61,10 @@ namespace TRStats
 
             // New toggles
             InfiniteCoal = Config.Bind("Cheats", "InfiniteCoal", false,
-                "When enabled, fuel/coal is never consumed");
+                "When enabled, coal and other regular fuel is never consumed (arcane machines follow InfiniteMagicFuel)");
+
+            InfiniteMagicFuel = Config.Bind("Cheats", "InfiniteMagicFuel", false,
+                "When enabled, magic fuel is never consumed by arcane crafters or the Arcane Book Stand");
 
             InfiniteWater = Config.Bind("Cheats", "InfiniteWater", false,
                 "When enabled, water buckets are never emptied");
@@ -86,6 +90,7 @@ namespace TRStats
             ExtraCustomerCapacity.Value = 0;
             PriceModifier.Value = 0f;
             InfiniteCoal.Value = false;
+            InfiniteMagicFuel.Value = false;
             InfiniteWater.Value = false;
             ServeSpeedSeconds.Value = 2;
             CustomerSpeedMultiplier.Value = 1.0f;
@@ -156,6 +161,9 @@ namespace TRStats
         private float _nextCustomerSpeedTime;
         private Toggle _infiniteCoalToggle;
         private Toggle _infiniteWaterToggle;
+        private Toggle _infiniteMagicFuelToggle;
+        private InputField _spawnQtyInput;
+        private Text _spawnStatusText;
         private Text _infoText;
         private Coroutine _loopCoroutine;
         private float _infoUpdateInterval = 2f;
@@ -337,7 +345,7 @@ namespace TRStats
                 hTitle.transform.SetParent(header.transform, false);
                 Text ht = hTitle.AddComponent<Text>();
                 ht.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-                ht.text = "TR CHEATS 2.3.0 (F4)";
+                ht.text = "TR CHEATS 2.4.0 (F4)";
                 ht.alignment = TextAnchor.MiddleCenter;
                 ht.color = new Color(1f, 0.8f, 0.4f);
                 ht.fontSize = 14;
@@ -508,6 +516,12 @@ namespace TRStats
 
                 yPos = CreateToggleRow(_contentObj.transform, "Infinite Water Bucket", Plugin.InfiniteWater.Value, yPos, out _infiniteWaterToggle);
                 _infiniteWaterToggle.onValueChanged.AddListener(delegate { Plugin.InfiniteWater.Value = _infiniteWaterToggle.isOn; });
+
+                yPos = CreateToggleRow(_contentObj.transform, "Infinite Magic Fuel", Plugin.InfiniteMagicFuel.Value, yPos, out _infiniteMagicFuelToggle);
+                _infiniteMagicFuelToggle.onValueChanged.AddListener(delegate { Plugin.InfiniteMagicFuel.Value = _infiniteMagicFuelToggle.isOn; });
+
+                yPos = CreateSpawnRow(_contentObj.transform, "Spawn Magic Fuel", yPos, out _spawnQtyInput, delegate { SpawnMagicFuel(); });
+                yPos = CreateStatusLine(_contentObj.transform, "Drops at your feet, up to " + MaxSpawnQuantity + " per click.", yPos, out _spawnStatusText);
 
                 // === ACTION BUTTONS ===
                 yPos -= 10;
@@ -758,6 +772,111 @@ namespace TRStats
             labelRT.offsetMax = new Vector2(-10, 0);
 
             return yPos - 28;
+        }
+
+        // A quantity box on the left and an action button filling the rest of the row.
+        float CreateSpawnRow(Transform parent, string buttonText, float yPos, out InputField qtyInput, UnityEngine.Events.UnityAction onClick)
+        {
+            Font font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+
+            GameObject rowObj = new GameObject(buttonText + "_Row");
+            rowObj.transform.SetParent(parent, false);
+            LayoutElement le = rowObj.AddComponent<LayoutElement>();
+            le.minHeight = 28;
+            RectTransform rowRT = rowObj.GetComponent<RectTransform>();
+            if (rowRT == null) rowRT = rowObj.AddComponent<RectTransform>();
+            rowRT.anchorMin = new Vector2(0, 1);
+            rowRT.anchorMax = new Vector2(1, 1);
+            rowRT.pivot = new Vector2(0.5f, 1);
+            rowRT.anchoredPosition = new Vector2(0, yPos);
+            rowRT.sizeDelta = new Vector2(0, 28);
+
+            // Quantity box
+            GameObject fieldObj = new GameObject("Quantity");
+            fieldObj.transform.SetParent(rowObj.transform, false);
+            Image fieldBg = fieldObj.AddComponent<Image>();
+            fieldBg.color = new Color(0.12f, 0.08f, 0.05f);
+            RectTransform fieldRT = fieldObj.GetComponent<RectTransform>();
+            fieldRT.anchorMin = new Vector2(0, 0);
+            fieldRT.anchorMax = new Vector2(0, 1);
+            fieldRT.pivot = new Vector2(0, 0.5f);
+            fieldRT.anchoredPosition = new Vector2(10, 0);
+            fieldRT.sizeDelta = new Vector2(64, 0);
+
+            Text fieldText = CreateInnerText(fieldObj.transform, "Text", font, new Color(1f, 0.9f, 0.6f), FontStyle.Normal);
+            Text placeholder = CreateInnerText(fieldObj.transform, "Placeholder", font, new Color(0.55f, 0.5f, 0.4f), FontStyle.Italic);
+            placeholder.text = "Qty";
+
+            qtyInput = fieldObj.AddComponent<InputField>();
+            qtyInput.targetGraphic = fieldBg;
+            qtyInput.textComponent = fieldText;
+            qtyInput.placeholder = placeholder;
+            qtyInput.contentType = InputField.ContentType.IntegerNumber;
+            qtyInput.characterLimit = 3;
+            qtyInput.text = DefaultSpawnQuantity.ToString();
+
+            // Action button
+            GameObject btnObj = new GameObject(buttonText + "_Button");
+            btnObj.transform.SetParent(rowObj.transform, false);
+            Image btnImg = btnObj.AddComponent<Image>();
+            btnImg.color = new Color(0.3f, 0.2f, 0.1f);
+            Button btn = btnObj.AddComponent<Button>();
+            btn.targetGraphic = btnImg;
+            btn.onClick.AddListener(onClick);
+            RectTransform btnRT = btnObj.GetComponent<RectTransform>();
+            btnRT.anchorMin = Vector2.zero;
+            btnRT.anchorMax = Vector2.one;
+            btnRT.offsetMin = new Vector2(82, 0);
+            btnRT.offsetMax = new Vector2(-10, 0);
+
+            Text btnText = CreateInnerText(btnObj.transform, "Text", font, new Color(1f, 0.9f, 0.6f), FontStyle.Normal);
+            btnText.text = buttonText;
+
+            return yPos - 32;
+        }
+
+        // A single-line text filling its parent with a small inset. InputField needs rich text off
+        // on its text component, so it is off for all of these.
+        Text CreateInnerText(Transform parent, string name, Font font, Color color, FontStyle style)
+        {
+            GameObject obj = new GameObject(name);
+            obj.transform.SetParent(parent, false);
+            Text t = obj.AddComponent<Text>();
+            t.font = font;
+            t.fontSize = 12;
+            t.fontStyle = style;
+            t.color = color;
+            t.alignment = TextAnchor.MiddleCenter;
+            t.supportRichText = false;
+            RectTransform rt = obj.GetComponent<RectTransform>();
+            rt.anchorMin = Vector2.zero;
+            rt.anchorMax = Vector2.one;
+            rt.offsetMin = new Vector2(4, 2);
+            rt.offsetMax = new Vector2(-4, -2);
+            return t;
+        }
+
+        float CreateStatusLine(Transform parent, string initialText, float yPos, out Text statusText)
+        {
+            GameObject rowObj = new GameObject("StatusLine");
+            rowObj.transform.SetParent(parent, false);
+            LayoutElement le = rowObj.AddComponent<LayoutElement>();
+            le.minHeight = 18;
+            RectTransform rowRT = rowObj.GetComponent<RectTransform>();
+            if (rowRT == null) rowRT = rowObj.AddComponent<RectTransform>();
+            rowRT.anchorMin = new Vector2(0, 1);
+            rowRT.anchorMax = new Vector2(1, 1);
+            rowRT.pivot = new Vector2(0.5f, 1);
+            rowRT.anchoredPosition = new Vector2(0, yPos);
+            rowRT.sizeDelta = new Vector2(0, 18);
+
+            statusText = CreateInnerText(rowObj.transform, "Text", Resources.GetBuiltinResource<Font>("Arial.ttf"), new Color(0.65f, 0.62f, 0.55f), FontStyle.Normal);
+            statusText.fontSize = 11;
+            statusText.alignment = TextAnchor.MiddleLeft;
+            statusText.rectTransform.offsetMin = new Vector2(10, 0);
+            statusText.text = initialText;
+
+            return yPos - 20;
         }
 
         float CreateButton(Transform parent, string text, float yPos, UnityEngine.Events.UnityAction onClick)
@@ -1073,27 +1192,160 @@ namespace TRStats
             return 0;
         }
 
-        private static MethodInfo _itemInstanceFactory;
-        // Create a fresh ItemInstance from an Item via the game's item factory (a public no-arg
-        // method on Item returning an ItemInstance, e.g. the obfuscated JMDALJBNFML). Found by
-        // signature so it survives obfuscation renames.
+        // Most units one click can drop. Magic fuel stacks, so it lands as a single pile, but the game
+        // spawns anything non-stackable as one object per unit, and thousands at once would stall.
+        private const int MaxSpawnQuantity = 999;
+        private const int DefaultSpawnQuantity = 10;
+
+        private static Fuel _magicFuel;
+        private static FieldInfo _itemIdField;
+
+        void SpawnMagicFuel()
+        {
+            try {
+                int qty;
+                string raw = _spawnQtyInput != null ? _spawnQtyInput.text : "";
+                if (!int.TryParse(raw, out qty) || qty < 1) {
+                    SetSpawnStatus("Enter a quantity of 1 or more.");
+                    return;
+                }
+                if (qty > MaxSpawnQuantity) {
+                    qty = MaxSpawnQuantity;
+                    if (_spawnQtyInput != null) _spawnQtyInput.text = qty.ToString();
+                }
+
+                PlayerController player = PlayerController.GetPlayer(1);
+                if (player == null) {
+                    SetSpawnStatus("No player found. Load into a save first.");
+                    return;
+                }
+
+                Fuel fuel = FindMagicFuelItem();
+                if (fuel == null) {
+                    SetSpawnStatus("Could not find a magic fuel item in the game data.");
+                    return;
+                }
+
+                ItemInstance instance = CreateItemInstance(fuel);
+                if (instance == null) {
+                    SetSpawnStatus("Could not create " + GetItemLabel(fuel) + ".");
+                    return;
+                }
+
+                // The same call the game uses for loot and harvest drops. With an amount it drops one
+                // stack of that size, or one object per unit for items that cannot stack.
+                DroppedItem.SpawnDroppedItem(player.transform.position, instance, qty);
+
+                string message = "Spawned " + qty + " " + GetItemLabel(fuel) + " at your feet.";
+                SetSpawnStatus(message);
+                File.AppendAllText(Plugin.LogPath, message + "\n");
+            } catch (Exception ex) {
+                SetSpawnStatus("Spawn failed: " + ex.Message);
+                try { File.AppendAllText(Plugin.LogPath, "SpawnMagicFuel Error: " + ex + "\n"); } catch {}
+            } finally {
+                // Hand keyboard focus back to the game so later key presses stop landing in the box.
+                if (EventSystem.current != null) EventSystem.current.SetSelectedGameObject(null);
+            }
+        }
+
+        void SetSpawnStatus(string message)
+        {
+            if (_spawnStatusText != null) _spawnStatusText.text = message;
+        }
+
+        // Magic fuel is any Fuel item flagged isMagical (Magic Shards in the current game). It is
+        // looked up in the item database at runtime instead of by ID, so new or renamed magic fuels
+        // still work. If there are several, the one that gives the most fuel per unit wins.
+        private static Fuel FindMagicFuelItem()
+        {
+            if (_magicFuel != null) return _magicFuel;
+
+            List<Fuel> found = new List<Fuel>();
+            foreach (ItemDatabase db in Resources.FindObjectsOfTypeAll<ItemDatabase>()) {
+                if (db == null || db.items == null) continue;
+                foreach (Item item in db.items) {
+                    Fuel f = item as Fuel;
+                    if (f != null && f.isMagical && !found.Contains(f)) found.Add(f);
+                }
+            }
+            // The database is the source of truth; loaded Fuel assets are only a fallback.
+            if (found.Count == 0) {
+                foreach (Fuel f in Resources.FindObjectsOfTypeAll<Fuel>()) {
+                    if (f != null && f.isMagical && !found.Contains(f)) found.Add(f);
+                }
+            }
+
+            Fuel best = null;
+            foreach (Fuel f in found) {
+                if (best == null || f.fuelAmount > best.fuelAmount) best = f;
+            }
+            _magicFuel = best;
+
+            try {
+                List<string> names = new List<string>();
+                foreach (Fuel f in found) names.Add(GetItemLabel(f) + " (" + f.fuelAmount + " fuel)");
+                File.AppendAllText(Plugin.LogPath, "Magic fuel items: " + (names.Count == 0 ? "none" : string.Join(", ", names.ToArray()))
+                    + (best != null ? "; spawning " + GetItemLabel(best) : "") + "\n");
+            } catch {}
+
+            return best;
+        }
+
+        // The item's display name in the player's language, falling back to the asset name.
+        private static string GetItemLabel(Item item)
+        {
+            if (item == null) return "item";
+            try {
+                if (!string.IsNullOrEmpty(item.nameId)) {
+                    string name = LocalisationSystem.Get(item.nameId);
+                    if (!string.IsNullOrEmpty(name)) return name;
+                }
+                if (_itemIdField == null) _itemIdField = typeof(Item).GetField("id", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                if (_itemIdField != null) {
+                    string name = LocalisationSystem.Get("Items/item_name_" + (int)_itemIdField.GetValue(item));
+                    if (!string.IsNullOrEmpty(name)) return name;
+                }
+            } catch {}
+            return item.name;
+        }
+
+        private static readonly Dictionary<Type, MethodInfo> _itemInstanceFactories = new Dictionary<Type, MethodInfo>();
+        // Create a fresh ItemInstance from an Item via the game's item factory: a public no-arg method
+        // on Item that returns an ItemInstance, found by signature so obfuscation renames do not
+        // matter. The obfuscator also emits virtual decoys with that exact shape which no subclass
+        // overrides. The real factory is the one the item's own type overrides (Fuel returns a
+        // FuelInstance, Food a FoodInstance); a decoy returns a plain ItemInstance that fuel hosts and
+        // feeders do not accept as fuel or food. Resolved once per item type.
         private static ItemInstance CreateItemInstance(Item item)
         {
             if (item == null) return null;
             try {
-                if (_itemInstanceFactory == null) {
-                    foreach (MethodInfo m in typeof(Item).GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)) {
-                        if (m.GetParameters().Length != 0) continue;
-                        if (!typeof(ItemInstance).IsAssignableFrom(m.ReturnType)) continue;
-                        _itemInstanceFactory = m;
-                        break;
-                    }
+                Type itemType = item.GetType();
+                MethodInfo factory;
+                if (!_itemInstanceFactories.TryGetValue(itemType, out factory)) {
+                    factory = FindItemInstanceFactory(itemType);
+                    _itemInstanceFactories[itemType] = factory;
                 }
-                if (_itemInstanceFactory == null) return null;
-                return _itemInstanceFactory.Invoke(item, null) as ItemInstance;
+                if (factory == null) return null;
+                return factory.Invoke(item, null) as ItemInstance;
             } catch {
                 return null;
             }
+        }
+
+        private static MethodInfo FindItemInstanceFactory(Type itemType)
+        {
+            MethodInfo fallback = null;
+            foreach (MethodInfo m in typeof(Item).GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)) {
+                if (m.GetParameters().Length != 0) continue;
+                if (!typeof(ItemInstance).IsAssignableFrom(m.ReturnType)) continue;
+                if (fallback == null) fallback = m;
+                if (!m.IsVirtual || itemType == typeof(Item)) continue;
+
+                MethodInfo mostDerived = itemType.GetMethod(m.Name, BindingFlags.Public | BindingFlags.Instance, null, Type.EmptyTypes, null);
+                if (mostDerived != null && mostDerived.DeclaringType != typeof(Item)) return m;
+            }
+            return fallback;
         }
 
         void InstaGrowAllCrops()
@@ -1190,6 +1442,7 @@ namespace TRStats
             Plugin.PriceModifier.Value = 0f;
             Patches.EmployeeWorkAvoidanceMultiplier.Value = 1.0f;
             Plugin.InfiniteCoal.Value = false;
+            Plugin.InfiniteMagicFuel.Value = false;
             Plugin.InfiniteWater.Value = false;
             Plugin.ServeSpeedSeconds.Value = 2;
             Plugin.CustomerSpeedMultiplier.Value = 1.0f;
@@ -1199,6 +1452,7 @@ namespace TRStats
             if (_priceSlider != null) _priceSlider.value = 0f;
             if (_workAvoidSlider != null) _workAvoidSlider.value = 1.0f;
             if (_infiniteCoalToggle != null) _infiniteCoalToggle.isOn = false;
+            if (_infiniteMagicFuelToggle != null) _infiniteMagicFuelToggle.isOn = false;
             if (_infiniteWaterToggle != null) _infiniteWaterToggle.isOn = false;
             if (_serveSpeedSlider != null) _serveSpeedSlider.value = 2;
             if (_custSpeedSlider != null) _custSpeedSlider.value = 1.0f;
@@ -1308,30 +1562,12 @@ namespace TRStats
             return null;
         }
 
-        public static int GetCrafterFuel(Crafter crafter)
-        {
-            if (crafter == null) return 0;
-
-            FieldInfo fuelField = crafter.GetType().GetField("fuel", AnyInstance);
-            if (fuelField != null && fuelField.FieldType == typeof(int))
-            {
-                try { return (int)fuelField.GetValue(crafter); } catch { }
-            }
-
-            foreach (PropertyInfo prop in crafter.GetType().GetProperties(AnyInstance))
-            {
-                if (prop.PropertyType != typeof(int) || prop.GetIndexParameters().Length != 0) continue;
-                try { return (int)prop.GetValue(crafter, null); } catch { }
-            }
-
-            return 0;
-        }
     }
 
     public static class PluginInfo
     {
         public const string PLUGIN_GUID = "com.trstats.mod";
         public const string PLUGIN_NAME = "TR Stats";
-        public const string PLUGIN_VERSION = "2.3.0";
+        public const string PLUGIN_VERSION = "2.4.0";
     }
 }

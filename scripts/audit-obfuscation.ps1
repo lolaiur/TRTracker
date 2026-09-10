@@ -210,6 +210,87 @@ function Test-WellWaterTargets {
     return $false
 }
 
+# True when the method contains a stfld to DeclaringTypeName::FieldName.
+function Test-MethodStoresField {
+    param(
+        [Reflection.MethodInfo]$Method,
+        [string]$DeclaringTypeName,
+        [string]$FieldName
+    )
+
+    $body = $Method.GetMethodBody()
+    if ($body -eq $null) { return $false }
+
+    $il = $body.GetILAsByteArray()
+    $module = $Method.Module
+    $index = 0
+
+    while ($index -lt $il.Length) {
+        $value = $il[$index]
+        $index++
+
+        if ($value -eq 0xfe) {
+            $op = $twoByteOpCodes[$il[$index]]
+            $index++
+        } else {
+            $op = $oneByteOpCodes[$value]
+        }
+
+        $operandStart = $index
+        $operandSize = Get-OperandSize -OperandType $op.OperandType -IL $il -Index $operandStart
+
+        if ($op -eq [System.Reflection.Emit.OpCodes]::Stfld) {
+            $field = $null
+            try { $field = $module.ResolveField([BitConverter]::ToInt32($il, $operandStart)) } catch {}
+            if ($field -and $field.DeclaringType -and $field.DeclaringType.Name -eq $DeclaringTypeName -and $field.Name -eq $FieldName) {
+                return $true
+            }
+        }
+
+        $index += $operandSize
+    }
+
+    return $false
+}
+
+# Mirrors PatchTargetFinder.FindFuelWriters: void X(int, bool) methods that store the fuel field.
+# TRStats patches every one of them, because the game spends fuel through SetFuel and its clones.
+function Get-FuelWriterCount {
+    param([string]$TypeName)
+
+    $type = Get-TypeSafe $TypeName
+    if (-not $type) { return 0 }
+
+    $count = 0
+    foreach ($method in $type.GetMethods($declaredInstanceFlags)) {
+        if ($method.ReturnType -ne [void]) { continue }
+        $parameters = $method.GetParameters()
+        if ($parameters.Length -ne 2) { continue }
+        if ($parameters[0].ParameterType -ne [int] -or $parameters[1].ParameterType -ne [bool]) { continue }
+        if (Test-MethodStoresField -Method $method -DeclaringTypeName $TypeName -FieldName "fuel") { $count++ }
+    }
+    return $count
+}
+
+# Mirrors StatsManager.FindItemInstanceFactory: the no-arg ItemInstance factory on Item that the
+# given item type overrides. Without it, spawned fuel would be a plain ItemInstance.
+function Test-ItemFactoryOverride {
+    param([string]$ItemTypeName)
+
+    $item = Get-TypeSafe "Item"
+    $itemType = Get-TypeSafe $ItemTypeName
+    $instanceType = Get-TypeSafe "ItemInstance"
+    if (-not $item -or -not $itemType -or -not $instanceType) { return $false }
+
+    foreach ($method in $item.GetMethods([Reflection.BindingFlags]"Public,Instance,DeclaredOnly")) {
+        if ($method.GetParameters().Length -ne 0 -or -not $method.IsVirtual) { continue }
+        if (-not $instanceType.IsAssignableFrom($method.ReturnType)) { continue }
+        $override = $itemType.GetMethod($method.Name, [Reflection.BindingFlags]"Public,Instance", $null, [Type[]]@(), $null)
+        if ($override -and $override.DeclaringType -ne $item) { return $true }
+    }
+    return $false
+}
+
 function Test-CrafterReturnBucketTargets {
     $type = Get-TypeSafe "Crafter"
     if (-not $type) { return $false }
@@ -248,8 +329,19 @@ $targets = @(
     [pscustomobject]@{ Plugin = "TRBar"; Check = "Food.halloweenFood"; Found = Test-MemberByName -TypeName "Food" -MemberName "halloweenFood" -MemberKind "Field" },
     [pscustomobject]@{ Plugin = "TRBar"; Check = "HalloweenEvent type"; Found = ($null -ne $assembly.GetType("HalloweenEvent")) },
     [pscustomobject]@{ Plugin = "TRStats"; Check = "CropSetter crop property"; Found = Test-InstancePropertyOfType -TypeName "CropSetter" -ValueTypeName "Crop" },
-    [pscustomobject]@{ Plugin = "TRStats"; Check = "Crafter fuel property"; Found = Test-InstancePropertyOfType -TypeName "Crafter" -ValueTypeName "Int32" },
+    [pscustomobject]@{ Plugin = "TRStats"; Check = "Crafter.fuel field"; Found = Test-MemberByName -TypeName "Crafter" -MemberName "fuel" -MemberKind "Field" },
     [pscustomobject]@{ Plugin = "TRStats"; Check = "Crafter.SetFuel"; Found = Test-MemberByName -TypeName "Crafter" -MemberName "SetFuel" -MemberKind "Method" },
+    [pscustomobject]@{ Plugin = "TRStats"; Check = "Dynamic crafter fuel writers"; Found = ((Get-FuelWriterCount -TypeName "Crafter") -gt 0) },
+    [pscustomobject]@{ Plugin = "TRStats"; Check = "Crafter.arcaneCrafter"; Found = Test-MemberByName -TypeName "Crafter" -MemberName "arcaneCrafter" -MemberKind "Field" },
+    [pscustomobject]@{ Plugin = "TRStats"; Check = "MagicBookStand.fuel field"; Found = Test-MemberByName -TypeName "MagicBookStand" -MemberName "fuel" -MemberKind "Field" },
+    [pscustomobject]@{ Plugin = "TRStats"; Check = "MagicBookStand.SetFuel"; Found = Test-MemberByName -TypeName "MagicBookStand" -MemberName "SetFuel" -MemberKind "Method" },
+    [pscustomobject]@{ Plugin = "TRStats"; Check = "Dynamic book stand fuel writers"; Found = ((Get-FuelWriterCount -TypeName "MagicBookStand") -gt 0) },
+    [pscustomobject]@{ Plugin = "TRStats"; Check = "Fuel.isMagical"; Found = Test-MemberByName -TypeName "Fuel" -MemberName "isMagical" -MemberKind "Field" },
+    [pscustomobject]@{ Plugin = "TRStats"; Check = "Fuel.fuelAmount"; Found = Test-MemberByName -TypeName "Fuel" -MemberName "fuelAmount" -MemberKind "Field" },
+    [pscustomobject]@{ Plugin = "TRStats"; Check = "ItemDatabase.items"; Found = Test-MemberByName -TypeName "ItemDatabase" -MemberName "items" -MemberKind "Field" },
+    [pscustomobject]@{ Plugin = "TRStats"; Check = "DroppedItem.SpawnDroppedItem"; Found = Test-MemberByName -TypeName "DroppedItem" -MemberName "SpawnDroppedItem" -MemberKind "Method" },
+    [pscustomobject]@{ Plugin = "TRStats"; Check = "Item factory overridden by Fuel"; Found = Test-ItemFactoryOverride -ItemTypeName "Fuel" },
+    [pscustomobject]@{ Plugin = "TRStats"; Check = "Item factory overridden by Food"; Found = Test-ItemFactoryOverride -ItemTypeName "Food" },
     [pscustomobject]@{ Plugin = "TRStats"; Check = "Dynamic crafter bucket-return target"; Found = Test-CrafterReturnBucketTargets },
     [pscustomobject]@{ Plugin = "TRStats"; Check = "Dynamic well water target"; Found = Test-WellWaterTargets },
     [pscustomobject]@{ Plugin = "TRStats"; Check = "CommonReferences singleton"; Found = Test-StaticMemberOfType -TypeName "CommonReferences" -ValueTypeName "CommonReferences" },
@@ -264,8 +356,8 @@ $targets = @(
     [pscustomobject]@{ Plugin = "TRStats"; Check = "Item.nameId"; Found = Test-MemberByName -TypeName "Item" -MemberName "nameId" -MemberKind "Field" },
     [pscustomobject]@{ Plugin = "TRBarrels"; Check = "AgingBarrel.inputSlot"; Found = Test-MemberByName -TypeName "AgingBarrel" -MemberName "inputSlot" -MemberKind "Field" },
     [pscustomobject]@{ Plugin = "TRBarrels"; Check = "AgingBarrel.timer"; Found = Test-MemberByName -TypeName "AgingBarrel" -MemberName "timer" -MemberKind "Field" },
-    [pscustomobject]@{ Plugin = "TRBarrels"; Check = "FoodInstance aging-level member (obfuscated canary: GACCGGCLPAI, prop-or-field)"; Found = ((Test-MemberByName -TypeName "FoodInstance" -MemberName "GACCGGCLPAI" -MemberKind "Property") -or (Test-MemberByName -TypeName "FoodInstance" -MemberName "GACCGGCLPAI" -MemberKind "Field")) },
-    [pscustomobject]@{ Plugin = "TRAutoloader"; Check = "FoodInstance cached-price field (obfuscated canary: APJGNLOMDKB)"; Found = Test-MemberByName -TypeName "FoodInstance" -MemberName "APJGNLOMDKB" -MemberKind "Field" },
+    [pscustomobject]@{ Plugin = "TRBarrels"; Check = "FoodInstance aging-level member (obfuscated canary: JBLCDOEDODA, prop-or-field)"; Found = ((Test-MemberByName -TypeName "FoodInstance" -MemberName "JBLCDOEDODA" -MemberKind "Property") -or (Test-MemberByName -TypeName "FoodInstance" -MemberName "JBLCDOEDODA" -MemberKind "Field")) },
+    [pscustomobject]@{ Plugin = "TRAutoloader"; Check = "FoodInstance cached-price field (obfuscated canary: KEPEKHAMHBI)"; Found = Test-MemberByName -TypeName "FoodInstance" -MemberName "KEPEKHAMHBI" -MemberKind "Field" },
     [pscustomobject]@{ Plugin = "TRAutoloader"; Check = "DrinkDispenser.isBeerTap"; Found = Test-MemberByName -TypeName "DrinkDispenser" -MemberName "isBeerTap" -MemberKind "Field" },
     [pscustomobject]@{ Plugin = "TRAutoloader"; Check = "DrinkDispenser slots"; Found = Test-MemberByName -TypeName "DrinkDispenser" -MemberName "slots" -MemberKind "Field" },
     [pscustomobject]@{ Plugin = "TRAutoloader"; Check = "BanquetBarrel slots"; Found = Test-MemberByName -TypeName "BanquetBarrel" -MemberName "slots" -MemberKind "Field" },
