@@ -1,5 +1,21 @@
 # Changelog
 
+## 2.4.0
+
+Supports game version 0.7.6.12.
+
+### TRStats (2.4.0)
+- Added **Infinite Magic Fuel**. Arcane crafters (Arcane Oven, Arcane Distillery) and the Arcane Book Stand keep their magic fuel instead of burning it. A machine still needs some fuel in it to start, but once loaded it stays topped up.
+- Added **Spawn Magic Fuel**: type a quantity and click the button to drop that many Magic Shards at your feet. It only spawns when you click, and gives exactly the number you typed, up to 999 per click. The item is looked up in the game's item database at runtime (any fuel flagged as magical), so it keeps working if the game renames or adds magic fuels. The first spawn logs which magic fuel items it found.
+- Infinite Coal/Fuel now covers regular fuel only. Arcane machines follow the new Infinite Magic Fuel toggle.
+- Fixed Infinite Coal letting crafters burn fuel anyway. Crafting spends fuel through a renamed copy of SetFuel, and the cheat only blocked SetFuel itself. Both cheats now block every fuel setter on crafters and the book stand, found by what the method does rather than by name.
+- Fixed Care for Animals filling food troughs with the wrong kind of item. The lookup for the game's item factory picked a decoy method that builds a plain item instead of food. It now picks the factory the item's own type overrides. The fuel spawner uses the same lookup.
+- Removed a helper that re-resolved the crafter fuel field by reflection on every fuel change.
+
+### TRBarrels (2.4.0), TRAutoloader (2.4.0)
+- Compatibility with the September 8 game update, which renamed the FoodInstance aging-level member and cached-price field again.
+- TRBarrels: removed dead code left over from the old stage scanner.
+
 ## 2.3.0
 
 Performance and code-health pass across all five mods. No feature or behaviour changes.

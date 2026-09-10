@@ -11,7 +11,7 @@ using TRShared;
 
 namespace TRBarrels
 {
-    [BepInPlugin("com.lolaiur.trbarrels", "Tavern Barrels", "2.3.0")]
+    [BepInPlugin("com.lolaiur.trbarrels", "Tavern Barrels", "2.4.0")]
     public class TRBarrelsPlugin : BaseUnityPlugin
     {
         public static TRBarrelsPlugin Instance;
@@ -106,7 +106,7 @@ namespace TRBarrels
                 hTitle.transform.SetParent(header.transform, false);
                 Text ht = hTitle.AddComponent<Text>();
                 ht.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-                ht.text = "TR AGING TRACKER 2.3.0 (F2)";
+                ht.text = "TR AGING TRACKER 2.4.0 (F2)";
                 ht.alignment = TextAnchor.MiddleCenter;
                 ht.color = new Color(1f, 0.8f, 0.4f);
                 ht.fontSize = 14;
@@ -401,7 +401,6 @@ namespace TRBarrels
         private float _listUpdateInterval = 2f;
         private float _nextScanTime = 0f;
         private float _nextUpdateTime = 0f;
-        private float _nextStageDiagTime = 0f;
         private List<Component> cachedBarrels = new List<Component>();
         private Type _agingBarrelType;
         
@@ -418,7 +417,6 @@ namespace TRBarrels
         private readonly Dictionary<Type, FieldInfo> _startMinuteFields = new Dictionary<Type, FieldInfo>();
         private readonly Dictionary<Type, FieldInfo> _agingLevelFields = new Dictionary<Type, FieldInfo>();
         private readonly Dictionary<Type, PropertyInfo> _agingLevelProps = new Dictionary<Type, PropertyInfo>();
-        private readonly Dictionary<Type, PropertyInfo[]> _stageProperties = new Dictionary<Type, PropertyInfo[]>();
 
         void Update()
         {
@@ -543,10 +541,10 @@ namespace TRBarrels
                             // alternated between exposing this as a property and a plain field, so try both.
                             int agingLevel = -1;
                             try {
-                                PropertyInfo ageP = GetCachedProperty(_agingLevelProps, itemInst.GetType(), "GACCGGCLPAI");
+                                PropertyInfo ageP = GetCachedProperty(_agingLevelProps, itemInst.GetType(), "JBLCDOEDODA");
                                 if (ageP != null) agingLevel = (int)ageP.GetValue(itemInst, null);
                                 if (agingLevel < 0) {
-                                    FieldInfo ageF = GetCachedField(_agingLevelFields, itemInst.GetType(), "GACCGGCLPAI");
+                                    FieldInfo ageF = GetCachedField(_agingLevelFields, itemInst.GetType(), "JBLCDOEDODA");
                                     if (ageF != null) agingLevel = (int)ageF.GetValue(itemInst);
                                 }
                             } catch {}
@@ -669,21 +667,6 @@ namespace TRBarrels
             prop = type.GetProperty(name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
             cache[type] = prop;
             return prop;
-        }
-
-        private PropertyInfo[] GetStageProperties(Type type)
-        {
-            PropertyInfo[] props;
-            if (_stageProperties.TryGetValue(type, out props)) return props;
-
-            List<PropertyInfo> matches = new List<PropertyInfo>();
-            foreach (PropertyInfo prop in type.GetProperties(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)) {
-                if (prop.PropertyType == typeof(int) && prop.CanRead) matches.Add(prop);
-            }
-
-            props = matches.ToArray();
-            _stageProperties[type] = props;
-            return props;
         }
 
         private string GetItemName(object itemInstance)
