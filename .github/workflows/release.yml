@@ -17,6 +17,9 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@v4
+      with:
+        # Full history and tags, so the duplicate-tag check below can actually see existing tags.
+        fetch-depth: 0
 
     - name: Validate version format
       run: |
@@ -56,51 +59,61 @@ jobs:
         echo "Package contents:"
         unzip -l TRTracker-${{ env.VERSION }}.zip
 
-    - name: Generate changelog
-      id: changelog
+    - name: Build release notes
       run: |
-        LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-        if [ -z "$LATEST_TAG" ]; then
-          CHANGELOG="Initial release"
-        else
-          CHANGELOG=$(git log ${LATEST_TAG}..HEAD --oneline --no-merges || echo "Updates since last release")
+        # Each plugin's version comes from its source, so these notes cannot drift from the DLLs.
+        ver() {
+          v=$(grep -oE 'BepInPlugin\("[^"]+", "[^"]+", "[0-9]+\.[0-9]+\.[0-9]+"\)' "$1" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+          [ -z "$v" ] && v=$(grep -oE 'PLUGIN_VERSION = "[0-9]+\.[0-9]+\.[0-9]+"' "$1" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+          echo "${v:-unknown}"
+        }
+
+        # This version's section of CHANGELOG.md; fall back to commit subjects since the last tag.
+        CHANGES=$(awk -v ver="$VERSION_NUM" '$0 == "## " ver {found=1; next} found && /^## / {exit} found {print}' CHANGELOG.md | sed '/./,$!d')
+        if [ -z "$CHANGES" ]; then
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -n "$LATEST_TAG" ]; then
+            CHANGES=$(git log "${LATEST_TAG}..HEAD" --no-merges --pretty='- %s')
+          else
+            CHANGES="Initial release"
+          fi
         fi
 
         {
-          echo 'changelog<<EOF'
-          echo "$CHANGELOG"
-          echo EOF
-        } >> $GITHUB_OUTPUT
+          echo "## Traveler's Rest Tracker Mods $VERSION_NUM"
+          echo ""
+          echo "Five BepInEx plugins for Traveler's Rest. Each works on its own."
+          echo ""
+          echo "- **TRTracker** $(ver Plugins/TRTrackerPlugin/TRTrackerPlugin.cs) (F1): live tavern stats"
+          echo "- **TRBarrels** $(ver Plugins/TRBarrelsPlugin/TRBarrelsPlugin.cs) (F2): aging barrel tracker"
+          echo "- **TRBar** $(ver Plugins/TRBarPlugin/TRBarPlugin.cs) (F3): taps, stock, and flow rates"
+          echo "- **TRStats** $(ver Plugins/TRStatsPlugin/TRStatsPlugin.cs) (F4): cheats and gameplay tweaks"
+          echo "- **TRAutoloader** $(ver Plugins/TRAutoloaderPlugin/TRAutoloaderPlugin.cs) (F5): automatic food and drink loading"
+          echo ""
+          echo "### Installation"
+          echo ""
+          echo "1. Install BepInEx 5.4.23.4 x64 (see the README)."
+          echo "2. Download \`TRTracker-$VERSION.zip\` and extract the DLL files."
+          echo "3. Copy them to \`Travellers Rest/Windows/BepInEx/plugins/\`."
+          echo "4. Launch the game."
+          echo ""
+          echo "### Changes"
+          echo ""
+          echo "$CHANGES"
+          echo ""
+          echo "---"
+          echo ""
+          echo "These DLLs are built from the source in this repository. Full history is in [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md)."
+        } > release_notes.md
+
+        cat release_notes.md
 
     - name: Create Release
       uses: softprops/action-gh-release@v2
       with:
         tag_name: ${{ env.VERSION }}
         name: TRTracker ${{ env.VERSION }}
-        body: |
-          ## Traveler's Rest Tracker Mods ${{ env.VERSION_NUM }}
-
-          This release contains four BepInEx plugins for Traveler's Rest:
-
-          - **TRTracker** (v1.3.0) - Gameplay tracking and statistics
-          - **TRBarrels** (v1.3.0) - Barrel management enhancements
-          - **TRBar** (v1.3.0) - Bar UI improvements
-          - **TRStats** (v1.1.0) - Tavern tuning and utility controls
-
-          ### Installation
-
-          1. Download `TRTracker-${{ env.VERSION }}.zip`
-          2. Extract all DLL files
-          3. Copy to `Travellers Rest/BepInEx/plugins/`
-          4. Launch the game
-
-          ### Changes
-
-          ${{ steps.changelog.outputs.changelog }}
-
-          ---
-
-          **Note:** These DLLs are compiled from the source code visible in this repository. You can verify the source matches the compiled binaries by comparing version strings and reviewing the code.
+        body_path: release_notes.md
         files: TRTracker-${{ env.VERSION }}.zip
         draft: false
         prerelease: false
